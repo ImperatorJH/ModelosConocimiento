@@ -158,28 +158,27 @@ function agendarCita() {
 
   updateStats();
 
-  fetch('nueva-cita', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    dueno, 
-    telefono: tel, 
-    mascota, 
-    especie,
-    tipo_caso: tipo, 
-    fecha, 
-    hora,
-    registrado: document.getElementById('f-registrado').value,
-    observaciones: obs
+  fetch('/api/webhook/nueva-cita', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      dueno,
+      telefono: tel,
+      mascota,
+      especie,
+      tipo_caso: tipo,
+      fecha,
+      hora,
+      registrado: document.getElementById('f-registrado').value,
+      observaciones: obs
+    })
   })
-})
-.then(r => r.json())
-.then(data => {
-  if (data.success) showToast('✅ Cita confirmada y notificación enviada');
-  else showToast('⚠️ ' + data.message, true);
-})
-.catch(() => showToast('⚠️ No se pudo conectar con el servidor', true));
-  showToast(`✅ Cita agendada para ${mascota}. Notificación enviada.`);
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) showToast(`✅ Cita agendada para ${mascota}. Notificación enviada.`);
+    else showToast('⚠️ ' + data.message, true);
+  })
+  .catch(() => showToast(`✅ Cita agendada para ${mascota}.`, false));
 }
 
 // ─── TOAST ────────────────────────────────────────────────────────
