@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VetCitas — Agendamiento de Citas</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header>
+  <div class="logo">Vet<span>Citas</span></div>
+  <div class="header-nav">
+    <button class="nav-btn active" onclick="showPage('dashboard')">Dashboard</button>
+    <button class="nav-btn" onclick="showPage('nueva')">Nueva Cita</button>
+    <button class="nav-btn" onclick="showPage('citas')">Citas</button>
+    <button class="nav-btn" onclick="showPage('flujo')">Flujo BPMN</button>
+  </div>
+</header>
+
+<!-- DASHBOARD -->
+<div id="page-dashboard" class="page active">
+  <div class="container">
+    <div class="hero">
+      <h1>Sistema de Agendamiento Veterinario</h1>
+      <p>Gestión inteligente de citas con validación automática de disponibilidad y reglas DMN.</p>
+      <button class="hero-btn" onclick="showPage('nueva')">🐾 Agendar nueva cita</button>
+    </div>
+
+    <div class="cards-grid">
+      <div class="stat-card">
+        <div class="stat-icon">📅</div>
+        <div>
+          <div class="stat-num" id="stat-total">5</div>
+          <div class="stat-label">Citas totales</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">✅</div>
+        <div>
+          <div class="stat-num" id="stat-conf">3</div>
+          <div class="stat-label">Confirmadas hoy</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">⏳</div>
+        <div>
+          <div class="stat-num" id="stat-pend">2</div>
+          <div class="stat-label">Pendientes</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DMN Rules -->
+    <div style="margin-top:32px;">
+      <div class="section-label">Modelo DMN</div>
+      <div class="section-heading">Reglas de Decisión Activas</div>
+      <div class="cards-grid">
+        <div class="dmn-table-card">
+          <div class="flow-title">DMN — Validar Disponibilidad</div>
+          <table>
+            <thead>
+              <tr><th>Disponibilidad</th><th>Cliente registrado</th><th>Acción</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Sí</td><td>Sí</td><td><span class="badge badge-conf">Confirmar cita</span></td></tr>
+              <tr><td>Sí</td><td>No</td><td><span class="badge badge-media">Registrar y confirmar</span></td></tr>
+              <tr><td>No</td><td>Sí</td><td><span class="badge badge-pend">Mostrar horarios</span></td></tr>
+              <tr><td>No</td><td>No</td><td><span class="badge badge-alta">Solicitar registro</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="dmn-table-card">
+          <div class="flow-title">DMN — Prioridad por Tipo</div>
+          <table>
+            <thead>
+              <tr><th>Tipo de caso</th><th>Prioridad</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>🚨 Emergencia</td><td><span class="badge badge-alta">Alta</span></td></tr>
+              <tr><td>🩺 Consulta general</td><td><span class="badge badge-media">Media</span></td></tr>
+              <tr><td>💉 Vacunación</td><td><span class="badge badge-baja">Baja</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- NUEVA CITA -->
+<div id="page-nueva" class="page">
+  <div class="container">
+    <div class="form-card">
+      <div class="form-title">Nueva Cita</div>
+      <div class="form-subtitle">Complete los datos del paciente. El sistema validará disponibilidad automáticamente.</div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Nombre del dueño</label>
+          <input type="text" id="f-dueno" placeholder="Ej: María García">
+        </div>
+        <div class="form-group">
+          <label>Teléfono / WhatsApp</label>
+          <input type="tel" id="f-tel" placeholder="310 000 0000">
+        </div>
+        <div class="form-group">
+          <label>Nombre de la mascota</label>
+          <input type="text" id="f-mascota" placeholder="Ej: Toby">
+        </div>
+        <div class="form-group">
+          <label>Especie</label>
+          <select id="f-especie">
+            <option value="">Seleccionar...</option>
+            <option>Perro</option>
+            <option>Gato</option>
+            <option>Ave</option>
+            <option>Conejo</option>
+            <option>Otro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Tipo de caso</label>
+          <select id="f-tipo" onchange="evalDMN()">
+            <option value="">Seleccionar...</option>
+            <option value="Emergencia">🚨 Emergencia</option>
+            <option value="Consulta general">🩺 Consulta general</option>
+            <option value="Vacunación">💉 Vacunación</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Cliente registrado</label>
+          <select id="f-registrado" onchange="evalDMN()">
+            <option value="">Seleccionar...</option>
+            <option value="si">Sí, ya existe</option>
+            <option value="no">No, es nuevo</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Fecha deseada</label>
+          <input type="date" id="f-fecha">
+        </div>
+        <div class="form-group">
+          <label>Hora</label>
+          <select id="f-hora" onchange="evalDMN()">
+            <option value="">Seleccionar...</option>
+            <option value="disponible">08:00 am ✅</option>
+            <option value="disponible">09:00 am ✅</option>
+            <option value="ocupada">10:00 am ❌ ocupada</option>
+            <option value="disponible">11:00 am ✅</option>
+            <option value="disponible">02:00 pm ✅</option>
+            <option value="ocupada">03:00 pm ❌ ocupada</option>
+            <option value="disponible">04:00 pm ✅</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>Observaciones</label>
+          <textarea id="f-obs" placeholder="Síntomas, indicaciones especiales..."></textarea>
+        </div>
+      </div>
+
+      <!-- DMN RESULT -->
+      <div class="dmn-box" id="dmn-result"></div>
+
+      <button class="submit-btn" onclick="agendarCita()">Confirmar Agendamiento</button>
+    </div>
+  </div>
+</div>
+
+<!-- CITAS -->
+<div id="page-citas" class="page">
+  <div class="container">
+    <div class="section-label">Gestión</div>
+    <div class="section-heading">Citas Registradas</div>
+    <div class="table-card">
+      <div class="table-header">
+        <div class="table-title">Lista de citas</div>
+        <input class="search-input" type="text" placeholder="🔍 Buscar..." oninput="filtrarCitas(this.value)">
+      </div>
+      <table id="tabla-citas">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Dueño</th>
+            <th>Mascota</th>
+            <th>Tipo</th>
+            <th>Prioridad</th>
+            <th>Fecha / Hora</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="citas-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- FLUJO BPMN -->
+<div id="page-flujo" class="page">
+  <div class="container">
+    <div class="section-label">Proceso</div>
+    <div class="section-heading">Flujo BPMN — AS-IS y TO-BE</div>
+
+    <div class="flow-card">
+      <div class="flow-title">🔴 AS-IS — Proceso Actual (manual)</div>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <span class="step-tag bpmn">Inicio</span>
+            <h4>Cliente solicita cita</h4>
+            <p>Llama o escribe por WhatsApp. Conocimiento tácito del personal.</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <span class="step-tag bpmn">Actividad</span>
+            <h4>Recepcionista revisa disponibilidad</h4>
+            <p>Consulta agenda en cuaderno o Excel. Proceso manual y propenso a errores.</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="step-num decision">?</div>
+          <div class="step-content">
+            <span class="step-tag">Decisión</span>
+            <h4>¿Hay disponibilidad?</h4>
+            <p>Si hay: confirma con veterinario → registra → confirma al cliente. Si no: informa al cliente.</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <span class="step-tag bpmn">Actividad</span>
+            <h4>Agenda manual</h4>
+            <p>Registra en cuaderno o Excel. Sin validaciones, sin notificaciones.</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">🏁</div>
+          <div class="step-content">
+            <span class="step-tag bpmn">Fin</span>
+            <h4>Cita confirmada (verbalmente)</h4>
+            <p>Sin registro formal ni notificación automática.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-card">
+      <div class="flow-title">🟢 TO-BE — Proceso Mejorado (este sistema)</div>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <span class="step-tag bpmn">Inicio</span>
+            <h4>Cliente solicita cita</h4>
+            <p>A través del sistema web, formulario estructurado con todos los datos requeridos.</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <span class="step-tag dmn">DMN</span>
+            <h4>Sistema valida disponibilidad automáticamente</h4>
+            <p>Regla: Si hay horario disponible Y cliente registrado → Confirmar. Si no está registrado → Registrar primero.</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <span class="step-tag dmn">DMN</span>
+            <h4>Asignar prioridad automática</h4>
+            <p>Emergencia → Alta. Consulta general → Media. Vacunación → Baja. Ordenamiento automático de agenda.</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <span class="step-tag bpmn">Actividad</span>
+            <h4>Registro en base de datos MySQL</h4>
+            <p>Almacenamiento estructurado, centralizado. Tabla <code>citas</code> con todos los campos normalizados.</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <span class="step-tag">Automatización</span>
+            <h4>Notificación automática al cliente</h4>
+            <p>n8n / Make.com envía confirmación por WhatsApp o email al registrar la cita.</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">🏁</div>
+          <div class="step-content">
+            <span class="step-tag bpmn">Fin</span>
+            <h4>Cita confirmada y registrada</h4>
+            <p>Visible en el panel para recepcionista y veterinario. Historial completo disponible.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-card" style="background:var(--verde-suave); border:1.5px solid var(--verde-claro);">
+      <div class="flow-title" style="color:var(--verde);">⚙️ Automatización con n8n (gratis, self-hosted)</div>
+      <p style="font-size:0.9rem; color:var(--verde); margin-bottom:16px;">El flujo de notificaciones puede implementarse con n8n (gratuito y open source):</p>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="step-num" style="background:var(--verde-claro);">W</div>
+          <div class="step-content">
+            <h4>Webhook Trigger</h4>
+            <p>n8n escucha cuando el formulario envía una nueva cita (POST al endpoint).</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="step-num" style="background:var(--verde-claro);">DB</div>
+          <div class="step-content">
+            <h4>MySQL Node</h4>
+            <p>Inserta la cita en la base de datos MySQL: <code>INSERT INTO citas ...</code></p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="step-num" style="background:var(--verde-claro);">📧</div>
+          <div class="step-content">
+            <h4>Email / WhatsApp Node</h4>
+            <p>Envía confirmación automática al cliente con los datos de su cita.</p>
+          </div>
+        </div>
+      </div>
+      <p style="margin-top:16px; font-size:0.82rem; color:var(--verde);">
+        <strong>Instalar n8n gratis:</strong> <code>npx n8n</code> o con Docker: <code>docker run -it --rm --name n8n -p 5678:5678 n8nio/n8n</code>
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script src="script.js"></script>
+</body>
+</html>
