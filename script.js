@@ -158,7 +158,7 @@ function agendarCita() {
 
   updateStats();
 
-  fetch('api/webhook/nueva-cita', {
+  fetch('nueva-cita', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
