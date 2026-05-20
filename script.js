@@ -157,7 +157,7 @@ function agendarCita() {
   document.getElementById('dmn-result').classList.remove('show');
 
   updateStats();
-  fetch('https://n8nvetcitas.nexuscampusinternational.com/api/webhook/nueva-cita', {
+  fetch('api/webhook/nueva-cita', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
