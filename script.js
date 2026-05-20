@@ -157,7 +157,7 @@ function agendarCita() {
   document.getElementById('dmn-result').classList.remove('show');
 
   updateStats();
-  
+
   fetch('api/webhook/nueva-cita', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
@@ -193,3 +193,5 @@ function showToast(msg, err=false) {
 
 // ─── INICIALIZACIÓN ───────────────────────────────────────────────
 updateStats();
+
+// mierda
