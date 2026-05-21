@@ -153,7 +153,7 @@ function agendarCita() {
   });
 
   // reset form
-  ['f-dueno','f-tel','f-mascota','f-obs','f-fecha'].forEach(id => document.getElementById(id).value='');
+  ['f-dueno','f-tel','f-mascota','f-obs','f-fecha','f-email'].forEach(id => document.getElementById(id).value='');
   ['f-especie','f-tipo','f-registrado','f-hora'].forEach(id => document.getElementById(id).selectedIndex=0);
   document.getElementById('dmn-result').classList.remove('show');
 
