@@ -117,6 +117,7 @@ function evalDMN() {
 function agendarCita() {
   const dueno = document.getElementById('f-dueno').value.trim();
   const tel = document.getElementById('f-tel').value.trim();
+  const email = document.getElementById('f-email').value.trim();
   const mascota = document.getElementById('f-mascota').value.trim();
   const especie = document.getElementById('f-especie').value;
   const tipo = document.getElementById('f-tipo').value;
@@ -164,6 +165,7 @@ function agendarCita() {
     body: JSON.stringify({
       dueno,
       telefono: tel,
+      email,
       mascota,
       especie,
       tipo_caso: tipo,
