@@ -2,11 +2,11 @@ const STORAGE_KEY = 'vetcitas:citas';
 const WEBHOOK_URL = '/api/webhook/nueva-cita';
 
 const citasIniciales = [
-  { id: 1, dueno: 'Laura Martinez', telefono: '300 111 2233', email: 'laura@example.com', mascota: 'Rex', especie: 'Perro', tipo: 'Emergencia', prioridad: 'Alta', fecha: '2026-06-03', hora: '08:00', estado: 'Confirmada', registrado: 'si', obs: 'Vomitos frecuentes' },
-  { id: 2, dueno: 'Carlos Gomez', telefono: '300 222 3344', email: 'carlos@example.com', mascota: 'Michi', especie: 'Gato', tipo: 'Vacunacion', prioridad: 'Baja', fecha: '2026-06-03', hora: '09:00', estado: 'Pendiente', registrado: 'si', obs: '' },
-  { id: 3, dueno: 'Ana Perez', telefono: '300 333 4455', email: 'ana@example.com', mascota: 'Coco', especie: 'Ave', tipo: 'Consulta general', prioridad: 'Media', fecha: '2026-06-04', hora: '11:00', estado: 'Confirmada', registrado: 'no', obs: 'Revision anual' },
-  { id: 4, dueno: 'Jhon Contreras', telefono: '300 444 5566', email: '', mascota: 'Bolt', especie: 'Perro', tipo: 'Consulta general', prioridad: 'Media', fecha: '2026-06-05', hora: '14:00', estado: 'Pendiente', registrado: 'si', obs: '' },
-  { id: 5, dueno: 'Julian Barrera', telefono: '300 555 6677', email: '', mascota: 'Nina', especie: 'Conejo', tipo: 'Vacunacion', prioridad: 'Baja', fecha: '2026-06-06', hora: '16:00', estado: 'Confirmada', registrado: 'no', obs: '' },
+  { id: 1, dueno: 'Laura Martinez', telefono: '300 111 2233', email: 'laura@example.com', mascota: 'Rex', especie: 'Perro', tipo: 'Emergencia', prioridad: 'Alta', fecha: '2026-06-03', hora: '08:00', estado: 'Confirmada', obs: 'Vomitos frecuentes' },
+  { id: 2, dueno: 'Carlos Gomez', telefono: '300 222 3344', email: 'carlos@example.com', mascota: 'Michi', especie: 'Gato', tipo: 'Vacunacion', prioridad: 'Baja', fecha: '2026-06-03', hora: '09:00', estado: 'Pendiente', obs: '' },
+  { id: 3, dueno: 'Ana Perez', telefono: '300 333 4455', email: 'ana@example.com', mascota: 'Coco', especie: 'Ave', tipo: 'Consulta general', prioridad: 'Media', fecha: '2026-06-04', hora: '11:00', estado: 'Confirmada', obs: 'Revision anual' },
+  { id: 4, dueno: 'Jhon Contreras', telefono: '300 444 5566', email: 'jhon@example.com', mascota: 'Bolt', especie: 'Perro', tipo: 'Consulta general', prioridad: 'Media', fecha: '2026-06-05', hora: '14:00', estado: 'Pendiente', obs: '' },
+  { id: 5, dueno: 'Julian Barrera', telefono: '300 555 6677', email: 'julian@example.com', mascota: 'Nina', especie: 'Conejo', tipo: 'Vacunacion', prioridad: 'Baja', fecha: '2026-06-06', hora: '16:00', estado: 'Confirmada', obs: '' },
 ];
 
 let citas = cargarCitas();
@@ -151,31 +151,32 @@ function horarioOcupado(fecha, hora) {
 
 function evalDMN() {
   const tipo = document.getElementById('f-tipo').value;
-  const registrado = document.getElementById('f-registrado').value;
+  const email = document.getElementById('f-email').value.trim();
   const fecha = document.getElementById('f-fecha').value;
   const hora = document.getElementById('f-hora').value;
   const box = document.getElementById('dmn-result');
 
-  if (!tipo || !registrado || !fecha || !hora) {
+  if (!tipo || !email || !fecha || !hora) {
     box.classList.remove('show');
     return;
   }
 
   const disponible = !horarioOcupado(fecha, hora);
   const prioridad = prioridadPorTipo(tipo);
+  const clienteLocal = citas.some(cita => cita.email && cita.email.toLowerCase() === email.toLowerCase());
   let accion = '';
 
-  if (disponible && registrado === 'si') {
-    accion = 'Accion DMN: confirmar cita directamente.';
-  } else if (disponible && registrado === 'no') {
-    accion = 'Accion DMN: registrar nuevo cliente y confirmar cita.';
-  } else if (!disponible && registrado === 'si') {
+  if (disponible && clienteLocal) {
+    accion = 'Accion DMN: email reconocido, confirmar cita.';
+  } else if (disponible && !clienteLocal) {
+    accion = 'Accion DMN: email nuevo, crear cliente y confirmar cita.';
+  } else if (!disponible && clienteLocal) {
     accion = 'Accion DMN: horario ocupado, mostrar horarios alternativos.';
   } else {
-    accion = 'Accion DMN: registrar cliente y elegir otro horario.';
+    accion = 'Accion DMN: email nuevo y horario ocupado, crear cliente y reprogramar.';
   }
 
-  box.innerHTML = `<strong>Prioridad asignada:</strong> ${prioridad}<br><strong>Disponibilidad:</strong> ${disponible ? 'Disponible' : 'Ocupado'}<br>${accion}`;
+  box.innerHTML = `<strong>Prioridad asignada:</strong> ${prioridad}<br><strong>Verificacion:</strong> ${clienteLocal ? 'Email encontrado en esta agenda' : 'Email nuevo'}<br><strong>Disponibilidad:</strong> ${disponible ? 'Disponible' : 'Ocupado'}<br>${accion}`;
   box.classList.add('show');
 }
 
@@ -186,13 +187,17 @@ async function agendarCita() {
   const mascota = document.getElementById('f-mascota').value.trim();
   const especie = document.getElementById('f-especie').value;
   const tipo = document.getElementById('f-tipo').value;
-  const registrado = document.getElementById('f-registrado').value;
   const fecha = document.getElementById('f-fecha').value;
   const hora = document.getElementById('f-hora').value;
   const obs = document.getElementById('f-obs').value.trim();
 
-  if (!dueno || !telefono || !mascota || !especie || !tipo || !registrado || !fecha || !hora) {
+  if (!dueno || !telefono || !email || !mascota || !especie || !tipo || !fecha || !hora) {
     showToast('Complete los campos obligatorios.', true);
+    return;
+  }
+
+  if (!email.includes('@')) {
+    showToast('Ingrese un email valido para verificar el cliente.', true);
     return;
   }
 
@@ -213,7 +218,6 @@ async function agendarCita() {
     fecha,
     hora,
     estado: 'Confirmada',
-    registrado,
     obs,
   };
 
@@ -231,6 +235,7 @@ async function agendarCita() {
         ...cita,
         tipo_caso: cita.tipo,
         observaciones: cita.obs,
+        verificacion_cliente: 'email',
         hora_formateada: formatearHora(cita.hora),
         creado_en: new Date().toISOString(),
       }),
@@ -247,7 +252,7 @@ function resetFormulario() {
   ['f-dueno', 'f-tel', 'f-email', 'f-mascota', 'f-obs', 'f-fecha'].forEach(id => {
     document.getElementById(id).value = '';
   });
-  ['f-especie', 'f-tipo', 'f-registrado', 'f-hora'].forEach(id => {
+  ['f-especie', 'f-tipo', 'f-hora'].forEach(id => {
     document.getElementById(id).selectedIndex = 0;
   });
   document.getElementById('dmn-result').classList.remove('show');
@@ -263,6 +268,7 @@ function showToast(msg, err = false) {
 
 document.addEventListener('DOMContentLoaded', () => {
   const fecha = document.getElementById('f-fecha');
+  document.getElementById('f-email').addEventListener('input', evalDMN);
   fecha.min = fechaLocalISO();
   fecha.addEventListener('change', evalDMN);
   updateStats();

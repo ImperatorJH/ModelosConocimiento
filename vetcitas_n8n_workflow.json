@@ -17,11 +17,11 @@
         300
       ],
       "webhookId": "vetcitas-webhook-001",
-      "notes": "El formulario HTML hace POST a este endpoint. Datos esperados: dueno, telefono, email, mascota, especie, tipo_caso, fecha, hora, registrado, observaciones."
+      "notes": "El formulario HTML hace POST a este endpoint. Datos esperados: dueno, telefono, email, mascota, especie, tipo_caso, fecha, hora, observaciones. El cliente se verifica por email."
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.first().json.body || $input.first().json;\n\nconst tipo = body.tipo_caso || body.tipo || 'Consulta general';\nconst observaciones = body.observaciones || body.obs || '';\nconst hora = String(body.hora || '').replace(':00:00', ':00');\nconst clienteRegistrado = body.registrado === 'si';\n\nconst prioridades = {\n  'Emergencia': 'Alta',\n  'Consulta general': 'Media',\n  'Vacunacion': 'Baja',\n  'Vacunación': 'Baja'\n};\n\nconst prioridad = body.prioridad || prioridades[tipo] || 'Media';\nconst disponible = true;\nlet accion = '';\nlet estado = body.estado || 'Confirmada';\n\nif (disponible && clienteRegistrado) {\n  accion = 'Confirmar cita';\n  estado = 'Confirmada';\n} else if (disponible && !clienteRegistrado) {\n  accion = 'Registrar cliente y confirmar';\n  estado = 'Confirmada';\n} else if (!disponible && clienteRegistrado) {\n  accion = 'Mostrar horarios alternativos';\n  estado = 'Pendiente';\n} else {\n  accion = 'Solicitar registro del cliente';\n  estado = 'Pendiente';\n}\n\nreturn [{\n  json: {\n    dueno: body.dueno || '',\n    telefono: body.telefono || '',\n    email: body.email || '',\n    mascota: body.mascota || '',\n    especie: body.especie || '',\n    tipo_caso: tipo,\n    prioridad,\n    fecha: body.fecha || '',\n    hora,\n    hora_formateada: body.hora_formateada || hora,\n    registrado: body.registrado || 'no',\n    observaciones,\n    accion_dmn: accion,\n    estado,\n    disponible,\n    fecha_creacion: body.creado_en || new Date().toISOString()\n  }\n}];"
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\n\nfunction clean(value) {\n  return String(value || '').trim();\n}\n\nfunction sql(value) {\n  return clean(value).replace(/'/g, \"''\");\n}\n\nconst dueno = clean(body.dueno);\nconst partesNombre = dueno.split(/\\s+/).filter(Boolean);\nconst nombres = partesNombre.length > 1 ? partesNombre.slice(0, -1).join(' ') : dueno;\nconst apellidos = partesNombre.length > 1 ? partesNombre.slice(-1).join(' ') : 'Sin apellido';\nconst email = clean(body.email).toLowerCase();\nconst telefono = clean(body.telefono);\nconst clienteWhere = email ? `email = '${sql(email)}'` : `telefono = '${sql(telefono)}'`;\n\nconst tipoEntrada = clean(body.tipo_caso || body.tipo || 'Consulta general');\nconst tipo = tipoEntrada === 'Vacunacion' ? 'Vacunación' : tipoEntrada;\nconst observaciones = clean(body.observaciones || body.obs);\nconst hora = clean(body.hora).slice(0, 5);\n\nconst prioridades = {\n  'Emergencia': 'Alta',\n  'Consulta general': 'Media',\n  'Vacunación': 'Baja'\n};\n\nconst prioridad = body.prioridad || prioridades[tipo] || 'Media';\nconst disponible = true;\nconst accion = disponible ? 'Verificar cliente por email y confirmar' : 'Mostrar horarios alternativos';\nconst estado = body.estado || 'Confirmada';\n\nreturn [{\n  json: {\n    dueno,\n    nombres,\n    apellidos,\n    telefono,\n    email,\n    mascota: clean(body.mascota),\n    especie: clean(body.especie),\n    tipo_caso: tipo,\n    prioridad,\n    fecha: clean(body.fecha),\n    hora,\n    hora_formateada: body.hora_formateada || hora,\n    verificacion_cliente: 'email',\n    observaciones,\n    accion_dmn: accion,\n    estado,\n    disponible,\n    fecha_creacion: body.creado_en || new Date().toISOString(),\n    sql_nombres: sql(nombres),\n    sql_apellidos: sql(apellidos),\n    sql_telefono: sql(telefono),\n    sql_email: sql(email),\n    sql_cliente_where: clienteWhere,\n    sql_mascota: sql(body.mascota),\n    sql_especie: sql(body.especie),\n    sql_tipo_caso: sql(tipo),\n    sql_prioridad: sql(prioridad),\n    sql_fecha: sql(body.fecha),\n    sql_hora: sql(hora),\n    sql_estado: sql(estado),\n    sql_accion_dmn: sql(accion),\n    sql_observaciones: sql(observaciones)\n  }\n}];"
       },
       "id": "dmn-logic",
       "name": "Aplicar Reglas DMN",
@@ -31,7 +31,7 @@
         500,
         300
       ],
-      "notes": "Normaliza campos del frontend y aplica reglas DMN: tipo de caso a prioridad, cliente registrado a accion."
+      "notes": "Normaliza campos del frontend y aplica reglas DMN. El cliente se identifica por email y telefono queda como respaldo."
     },
     {
       "parameters": {
@@ -64,11 +64,11 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO citas (id_cliente, id_mascota, id_veterinario, tipo_caso, prioridad, fecha_cita, hora_cita, estado, accion_dmn, observaciones)\nSELECT\n  c.id_cliente,\n  m.id_mascota,\n  1 AS id_veterinario,\n  '{{ $json.tipo_caso }}',\n  '{{ $json.prioridad }}',\n  '{{ $json.fecha }}',\n  '{{ $json.hora }}:00',\n  '{{ $json.estado }}',\n  '{{ $json.accion_dmn }}',\n  '{{ $json.observaciones }}'\nFROM clientes c\nJOIN mascotas m ON m.id_cliente = c.id_cliente\nWHERE c.telefono = '{{ $json.telefono }}'\n  AND m.nombre = '{{ $json.mascota }}'\nLIMIT 1;",
+        "query": "INSERT INTO clientes (nombres, apellidos, telefono, email)\nSELECT '{{ $('Aplicar Reglas DMN').item.json.sql_nombres }}', '{{ $('Aplicar Reglas DMN').item.json.sql_apellidos }}', '{{ $('Aplicar Reglas DMN').item.json.sql_telefono }}', '{{ $('Aplicar Reglas DMN').item.json.sql_email }}'\nWHERE NOT EXISTS (\n  SELECT 1 FROM clientes WHERE {{ $('Aplicar Reglas DMN').item.json.sql_cliente_where }}\n);",
         "options": {}
       },
-      "id": "mysql-insert",
-      "name": "Guardar Cita en MySQL",
+      "id": "mysql-upsert-cliente",
+      "name": "Crear Cliente si no Existe",
       "type": "n8n-nodes-base.mySql",
       "typeVersion": 2,
       "position": [
@@ -80,22 +80,64 @@
           "name": "VetCitas MySQL"
         }
       },
-      "notes": "Usa las credenciales MySQL existentes en n8n."
+      "notes": "Evita que una cita de cliente nuevo falle silenciosamente por no existir en la tabla clientes."
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO mascotas (id_cliente, nombre, especie)\nSELECT c.id_cliente, '{{ $('Aplicar Reglas DMN').item.json.sql_mascota }}', '{{ $('Aplicar Reglas DMN').item.json.sql_especie }}'\nFROM clientes c\nWHERE {{ $('Aplicar Reglas DMN').item.json.sql_cliente_where }}\n  AND NOT EXISTS (\n    SELECT 1\n    FROM mascotas m\n    WHERE m.id_cliente = c.id_cliente\n      AND m.nombre = '{{ $('Aplicar Reglas DMN').item.json.sql_mascota }}'\n  )\nLIMIT 1;",
+        "options": {}
+      },
+      "id": "mysql-upsert-mascota",
+      "name": "Crear Mascota si no Existe",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        120
+      ],
+      "credentials": {
+        "mySql": {
+          "name": "VetCitas MySQL"
+        }
+      },
+      "notes": "Crea la mascota asociada al cliente cuando no existe."
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO citas (id_mascota, id_cliente, id_veterinario, tipo_caso, prioridad, fecha_cita, hora_cita, estado, accion_dmn, observaciones)\nSELECT\n  m.id_mascota,\n  c.id_cliente,\n  1 AS id_veterinario,\n  '{{ $('Aplicar Reglas DMN').item.json.sql_tipo_caso }}',\n  '{{ $('Aplicar Reglas DMN').item.json.sql_prioridad }}',\n  '{{ $('Aplicar Reglas DMN').item.json.sql_fecha }}',\n  '{{ $('Aplicar Reglas DMN').item.json.sql_hora }}:00',\n  '{{ $('Aplicar Reglas DMN').item.json.sql_estado }}',\n  '{{ $('Aplicar Reglas DMN').item.json.sql_accion_dmn }}',\n  '{{ $('Aplicar Reglas DMN').item.json.sql_observaciones }}'\nFROM clientes c\nJOIN mascotas m ON m.id_cliente = c.id_cliente\nWHERE {{ $('Aplicar Reglas DMN').item.json.sql_cliente_where }}\n  AND m.nombre = '{{ $('Aplicar Reglas DMN').item.json.sql_mascota }}'\nLIMIT 1;",
+        "options": {}
+      },
+      "id": "mysql-insert",
+      "name": "Guardar Cita en MySQL",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        120
+      ],
+      "credentials": {
+        "mySql": {
+          "name": "VetCitas MySQL"
+        }
+      },
+      "notes": "Inserta la cita despues de asegurar cliente y mascota."
     },
     {
       "parameters": {
         "fromEmail": "noreply@vetcitas.com",
-        "toEmail": "={{ $json.email }}",
-        "subject": "Cita confirmada - {{ $json.mascota }}",
+        "toEmail": "={{ $('Aplicar Reglas DMN').item.json.email }}",
+        "subject": "Cita confirmada - {{ $('Aplicar Reglas DMN').item.json.mascota }}",
         "emailType": "html",
-        "message": "<h2 style='color:#2d6a4f'>Cita confirmada</h2>\n<p>Hola <strong>{{ $json.dueno }}</strong>,</p>\n<p>Su cita ha sido agendada exitosamente.</p>\n<table style='border-collapse:collapse;width:100%'>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Mascota</strong></td><td style='padding:8px'>{{ $json.mascota }}</td></tr>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Tipo</strong></td><td style='padding:8px'>{{ $json.tipo_caso }}</td></tr>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Fecha</strong></td><td style='padding:8px'>{{ $json.fecha }}</td></tr>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Hora</strong></td><td style='padding:8px'>{{ $json.hora_formateada }}</td></tr>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Prioridad</strong></td><td style='padding:8px'>{{ $json.prioridad }}</td></tr>\n</table>\n<p style='margin-top:16px;color:#6b7280;font-size:0.85em'>VetCitas - Sistema de Agendamiento</p>"
+        "message": "<h2 style='color:#2d6a4f'>Cita confirmada</h2>\n<p>Hola <strong>{{ $('Aplicar Reglas DMN').item.json.dueno }}</strong>,</p>\n<p>Su cita ha sido agendada exitosamente.</p>\n<table style='border-collapse:collapse;width:100%'>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Mascota</strong></td><td style='padding:8px'>{{ $('Aplicar Reglas DMN').item.json.mascota }}</td></tr>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Tipo</strong></td><td style='padding:8px'>{{ $('Aplicar Reglas DMN').item.json.tipo_caso }}</td></tr>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Fecha</strong></td><td style='padding:8px'>{{ $('Aplicar Reglas DMN').item.json.fecha }}</td></tr>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Hora</strong></td><td style='padding:8px'>{{ $('Aplicar Reglas DMN').item.json.hora_formateada }}</td></tr>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Prioridad</strong></td><td style='padding:8px'>{{ $('Aplicar Reglas DMN').item.json.prioridad }}</td></tr>\n</table>\n<p style='margin-top:16px;color:#6b7280;font-size:0.85em'>VetCitas - Sistema de Agendamiento</p>"
       },
       "id": "send-email",
       "name": "Enviar Confirmacion (Email)",
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2,
       "position": [
-        1020,
+        1800,
         300
       ],
       "notes": "Usa la configuracion SMTP existente."
@@ -108,11 +150,11 @@
           "parameters": [
             {
               "name": "phone",
-              "value": "={{ $json.telefono }}"
+              "value": "={{ $('Aplicar Reglas DMN').item.json.telefono }}"
             },
             {
               "name": "text",
-              "value": "=Cita confirmada para {{ $json.mascota }} el {{ $json.fecha }} a las {{ $json.hora_formateada }}. Prioridad: {{ $json.prioridad }}. - VetCitas"
+              "value": "=Cita confirmada para {{ $('Aplicar Reglas DMN').item.json.mascota }} el {{ $('Aplicar Reglas DMN').item.json.fecha }} a las {{ $('Aplicar Reglas DMN').item.json.hora_formateada }}. Prioridad: {{ $('Aplicar Reglas DMN').item.json.prioridad }}. - VetCitas"
             },
             {
               "name": "apikey",
@@ -127,7 +169,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        1020,
+        1800,
         480
       ],
       "notes": "Mantiene la notificacion por CallMeBot. Cambie TU_API_KEY_CALLMEBOT por su key si aplica."
@@ -135,14 +177,14 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={ \"success\": true, \"message\": \"Cita agendada correctamente\", \"cita\": { \"dueno\": \"{{ $json.dueno }}\", \"mascota\": \"{{ $json.mascota }}\", \"fecha\": \"{{ $json.fecha }}\", \"hora\": \"{{ $json.hora_formateada }}\", \"prioridad\": \"{{ $json.prioridad }}\" } }"
+        "responseBody": "={ \"success\": true, \"message\": \"Cita agendada correctamente\", \"cita\": { \"dueno\": \"{{ $('Aplicar Reglas DMN').item.json.dueno }}\", \"mascota\": \"{{ $('Aplicar Reglas DMN').item.json.mascota }}\", \"fecha\": \"{{ $('Aplicar Reglas DMN').item.json.fecha }}\", \"hora\": \"{{ $('Aplicar Reglas DMN').item.json.hora_formateada }}\", \"prioridad\": \"{{ $('Aplicar Reglas DMN').item.json.prioridad }}\" } }"
       },
       "id": "response-ok",
       "name": "Responder OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        1280,
+        2060,
         300
       ]
     },
@@ -150,7 +192,7 @@
       "parameters": {
         "respondWith": "json",
         "responseCode": 409,
-        "responseBody": "={ \"success\": false, \"message\": \"{{ $json.accion_dmn }}\", \"disponible\": false }"
+        "responseBody": "={ \"success\": false, \"message\": \"{{ $('Aplicar Reglas DMN').item.json.accion_dmn }}\", \"disponible\": false }"
       },
       "id": "response-no",
       "name": "Responder No Disponible",
@@ -189,17 +231,7 @@
       "main": [
         [
           {
-            "node": "Guardar Cita en MySQL",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Enviar Confirmacion (Email)",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Notificar por WhatsApp",
+            "node": "Crear Cliente si no Existe",
             "type": "main",
             "index": 0
           }
@@ -207,6 +239,44 @@
         [
           {
             "node": "Responder No Disponible",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Cliente si no Existe": {
+      "main": [
+        [
+          {
+            "node": "Crear Mascota si no Existe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Mascota si no Existe": {
+      "main": [
+        [
+          {
+            "node": "Guardar Cita en MySQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar Cita en MySQL": {
+      "main": [
+        [
+          {
+            "node": "Enviar Confirmacion (Email)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notificar por WhatsApp",
             "type": "main",
             "index": 0
           }

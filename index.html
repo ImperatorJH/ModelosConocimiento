@@ -59,13 +59,13 @@
           <div class="flow-title">DMN - Validar Disponibilidad</div>
           <table>
             <thead>
-              <tr><th>Disponibilidad</th><th>Cliente registrado</th><th>Accion</th></tr>
+              <tr><th>Disponibilidad</th><th>Verificacion</th><th>Accion</th></tr>
             </thead>
             <tbody>
-              <tr><td>Si</td><td>Si</td><td><span class="badge badge-conf">Confirmar cita</span></td></tr>
-              <tr><td>Si</td><td>No</td><td><span class="badge badge-media">Registrar y confirmar</span></td></tr>
-              <tr><td>No</td><td>Si</td><td><span class="badge badge-pend">Mostrar horarios</span></td></tr>
-              <tr><td>No</td><td>No</td><td><span class="badge badge-alta">Solicitar registro</span></td></tr>
+              <tr><td>Si</td><td>Email encontrado</td><td><span class="badge badge-conf">Confirmar cita</span></td></tr>
+              <tr><td>Si</td><td>Email nuevo</td><td><span class="badge badge-media">Crear cliente y confirmar</span></td></tr>
+              <tr><td>No</td><td>Email encontrado</td><td><span class="badge badge-pend">Mostrar horarios</span></td></tr>
+              <tr><td>No</td><td>Email nuevo</td><td><span class="badge badge-alta">Crear cliente y reprogramar</span></td></tr>
             </tbody>
           </table>
         </div>
@@ -103,7 +103,7 @@
           <input type="tel" id="f-tel" placeholder="310 000 0000">
         </div>
         <div class="form-group">
-          <label for="f-email">Email</label>
+          <label for="f-email">Email *</label>
           <input type="email" id="f-email" placeholder="ejemplo@correo.com">
         </div>
         <div class="form-group">
@@ -128,14 +128,6 @@
             <option value="Emergencia">Emergencia</option>
             <option value="Consulta general">Consulta general</option>
             <option value="Vacunacion">Vacunacion</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="f-registrado">Cliente registrado *</label>
-          <select id="f-registrado" onchange="evalDMN()">
-            <option value="">Seleccionar...</option>
-            <option value="si">Si, ya existe</option>
-            <option value="no">No, es nuevo</option>
           </select>
         </div>
         <div class="form-group">
