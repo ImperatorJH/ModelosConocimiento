@@ -1,0 +1,235 @@
+{
+  "name": "VetCitas - Flujo de Agendamiento",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "nueva-cita",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Recibir Nueva Cita (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "vetcitas-webhook-001",
+      "notes": "El formulario HTML hace POST a este endpoint. Datos esperados: dueno, telefono, email, mascota, especie, tipo_caso, fecha, hora, registrado, observaciones."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\n\nconst tipo = body.tipo_caso || body.tipo || 'Consulta general';\nconst observaciones = body.observaciones || body.obs || '';\nconst hora = String(body.hora || '').replace(':00:00', ':00');\nconst clienteRegistrado = body.registrado === 'si';\n\nconst prioridades = {\n  'Emergencia': 'Alta',\n  'Consulta general': 'Media',\n  'Vacunacion': 'Baja',\n  'Vacunación': 'Baja'\n};\n\nconst prioridad = body.prioridad || prioridades[tipo] || 'Media';\nconst disponible = true;\nlet accion = '';\nlet estado = body.estado || 'Confirmada';\n\nif (disponible && clienteRegistrado) {\n  accion = 'Confirmar cita';\n  estado = 'Confirmada';\n} else if (disponible && !clienteRegistrado) {\n  accion = 'Registrar cliente y confirmar';\n  estado = 'Confirmada';\n} else if (!disponible && clienteRegistrado) {\n  accion = 'Mostrar horarios alternativos';\n  estado = 'Pendiente';\n} else {\n  accion = 'Solicitar registro del cliente';\n  estado = 'Pendiente';\n}\n\nreturn [{\n  json: {\n    dueno: body.dueno || '',\n    telefono: body.telefono || '',\n    email: body.email || '',\n    mascota: body.mascota || '',\n    especie: body.especie || '',\n    tipo_caso: tipo,\n    prioridad,\n    fecha: body.fecha || '',\n    hora,\n    hora_formateada: body.hora_formateada || hora,\n    registrado: body.registrado || 'no',\n    observaciones,\n    accion_dmn: accion,\n    estado,\n    disponible,\n    fecha_creacion: body.creado_en || new Date().toISOString()\n  }\n}];"
+      },
+      "id": "dmn-logic",
+      "name": "Aplicar Reglas DMN",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ],
+      "notes": "Normaliza campos del frontend y aplica reglas DMN: tipo de caso a prioridad, cliente registrado a accion."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.disponible }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "if-disponible",
+      "name": "Horario disponible?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        760,
+        300
+      ],
+      "notes": "Bifurca el flujo segun disponibilidad calculada."
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO citas (id_cliente, id_mascota, id_veterinario, tipo_caso, prioridad, fecha_cita, hora_cita, estado, accion_dmn, observaciones)\nSELECT\n  c.id_cliente,\n  m.id_mascota,\n  1 AS id_veterinario,\n  '{{ $json.tipo_caso }}',\n  '{{ $json.prioridad }}',\n  '{{ $json.fecha }}',\n  '{{ $json.hora }}:00',\n  '{{ $json.estado }}',\n  '{{ $json.accion_dmn }}',\n  '{{ $json.observaciones }}'\nFROM clientes c\nJOIN mascotas m ON m.id_cliente = c.id_cliente\nWHERE c.telefono = '{{ $json.telefono }}'\n  AND m.nombre = '{{ $json.mascota }}'\nLIMIT 1;",
+        "options": {}
+      },
+      "id": "mysql-insert",
+      "name": "Guardar Cita en MySQL",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        120
+      ],
+      "credentials": {
+        "mySql": {
+          "name": "VetCitas MySQL"
+        }
+      },
+      "notes": "Usa las credenciales MySQL existentes en n8n."
+    },
+    {
+      "parameters": {
+        "fromEmail": "noreply@vetcitas.com",
+        "toEmail": "={{ $json.email }}",
+        "subject": "Cita confirmada - {{ $json.mascota }}",
+        "emailType": "html",
+        "message": "<h2 style='color:#2d6a4f'>Cita confirmada</h2>\n<p>Hola <strong>{{ $json.dueno }}</strong>,</p>\n<p>Su cita ha sido agendada exitosamente.</p>\n<table style='border-collapse:collapse;width:100%'>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Mascota</strong></td><td style='padding:8px'>{{ $json.mascota }}</td></tr>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Tipo</strong></td><td style='padding:8px'>{{ $json.tipo_caso }}</td></tr>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Fecha</strong></td><td style='padding:8px'>{{ $json.fecha }}</td></tr>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Hora</strong></td><td style='padding:8px'>{{ $json.hora_formateada }}</td></tr>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Prioridad</strong></td><td style='padding:8px'>{{ $json.prioridad }}</td></tr>\n</table>\n<p style='margin-top:16px;color:#6b7280;font-size:0.85em'>VetCitas - Sistema de Agendamiento</p>"
+      },
+      "id": "send-email",
+      "name": "Enviar Confirmacion (Email)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        300
+      ],
+      "notes": "Usa la configuracion SMTP existente."
+    },
+    {
+      "parameters": {
+        "url": "https://api.callmebot.com/whatsapp.php",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "phone",
+              "value": "={{ $json.telefono }}"
+            },
+            {
+              "name": "text",
+              "value": "=Cita confirmada para {{ $json.mascota }} el {{ $json.fecha }} a las {{ $json.hora_formateada }}. Prioridad: {{ $json.prioridad }}. - VetCitas"
+            },
+            {
+              "name": "apikey",
+              "value": "TU_API_KEY_CALLMEBOT"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "whatsapp-notify",
+      "name": "Notificar por WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1020,
+        480
+      ],
+      "notes": "Mantiene la notificacion por CallMeBot. Cambie TU_API_KEY_CALLMEBOT por su key si aplica."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"success\": true, \"message\": \"Cita agendada correctamente\", \"cita\": { \"dueno\": \"{{ $json.dueno }}\", \"mascota\": \"{{ $json.mascota }}\", \"fecha\": \"{{ $json.fecha }}\", \"hora\": \"{{ $json.hora_formateada }}\", \"prioridad\": \"{{ $json.prioridad }}\" } }"
+      },
+      "id": "response-ok",
+      "name": "Responder OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 409,
+        "responseBody": "={ \"success\": false, \"message\": \"{{ $json.accion_dmn }}\", \"disponible\": false }"
+      },
+      "id": "response-no",
+      "name": "Responder No Disponible",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1020,
+        660
+      ]
+    }
+  ],
+  "connections": {
+    "Recibir Nueva Cita (Webhook)": {
+      "main": [
+        [
+          {
+            "node": "Aplicar Reglas DMN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aplicar Reglas DMN": {
+      "main": [
+        [
+          {
+            "node": "Horario disponible?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Horario disponible?": {
+      "main": [
+        [
+          {
+            "node": "Guardar Cita en MySQL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Enviar Confirmacion (Email)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notificar por WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder No Disponible",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Confirmacion (Email)": {
+      "main": [
+        [
+          {
+            "node": "Responder OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "description": "Flujo n8n para VetCitas. Recibe cita via webhook, aplica reglas DMN, guarda en MySQL y notifica al cliente por email/WhatsApp.",
+    "project": "Modelos de Conocimiento - Agendamiento de Citas"
+  }
+}
