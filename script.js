@@ -149,11 +149,20 @@ function horarioOcupado(fecha, hora) {
   return citas.some(cita => cita.fecha === fecha && cita.hora === hora && cita.estado !== 'Cancelada');
 }
 
+function fieldValue(id) {
+  const field = document.getElementById(id);
+  if (!field) {
+    console.error(`No se encontro el campo #${id}. Revise que index.html y script.js esten actualizados.`);
+    return '';
+  }
+  return typeof field.value === 'string' ? field.value.trim() : '';
+}
+
 function evalDMN() {
-  const tipo = document.getElementById('f-tipo').value;
-  const email = document.getElementById('f-email').value.trim();
-  const fecha = document.getElementById('f-fecha').value;
-  const hora = document.getElementById('f-hora').value;
+  const tipo = fieldValue('f-tipo');
+  const email = fieldValue('f-email');
+  const fecha = fieldValue('f-fecha');
+  const hora = fieldValue('f-hora');
   const box = document.getElementById('dmn-result');
 
   if (!tipo || !email || !fecha || !hora) {
@@ -181,15 +190,15 @@ function evalDMN() {
 }
 
 async function agendarCita() {
-  const dueno = document.getElementById('f-dueno').value.trim();
-  const telefono = document.getElementById('f-tel').value.trim();
-  const email = document.getElementById('f-email').value.trim();
-  const mascota = document.getElementById('f-mascota').value.trim();
-  const especie = document.getElementById('f-especie').value;
-  const tipo = document.getElementById('f-tipo').value;
-  const fecha = document.getElementById('f-fecha').value;
-  const hora = document.getElementById('f-hora').value;
-  const obs = document.getElementById('f-obs').value.trim();
+  const dueno = fieldValue('f-dueno');
+  const telefono = fieldValue('f-tel');
+  const email = fieldValue('f-email');
+  const mascota = fieldValue('f-mascota');
+  const especie = fieldValue('f-especie');
+  const tipo = fieldValue('f-tipo');
+  const fecha = fieldValue('f-fecha');
+  const hora = fieldValue('f-hora');
+  const obs = fieldValue('f-obs');
 
   if (!dueno || !telefono || !email || !mascota || !especie || !tipo || !fecha || !hora) {
     showToast('Complete los campos obligatorios.', true);
