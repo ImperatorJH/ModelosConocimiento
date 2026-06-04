@@ -1,5 +1,6 @@
 const STORAGE_KEY = 'vetcitas:citas';
 const WEBHOOK_URL = '/api/webhook/nueva-cita';
+const CITAS_URL = '/api/webhook/citas';
 
 const citasIniciales = [
   { id: 1, dueno: 'Laura Martinez', telefono: '300 111 2233', email: 'laura@example.com', mascota: 'Rex', especie: 'Perro', tipo: 'Emergencia', prioridad: 'Alta', fecha: '2026-06-03', hora: '08:00', estado: 'Confirmada', obs: 'Vomitos frecuentes' },
@@ -18,6 +19,45 @@ function cargarCitas() {
     return Array.isArray(guardadas) ? guardadas : citasIniciales;
   } catch {
     return citasIniciales;
+  }
+}
+
+function normalizarCitaRemota(cita) {
+  return {
+    id: Number(cita.id || cita.id_cita || 0),
+    dueno: cita.dueno || '',
+    telefono: cita.telefono || '',
+    email: cita.email || '',
+    mascota: cita.mascota || '',
+    especie: cita.especie || '',
+    tipo: cita.tipo || cita.tipo_caso || '',
+    prioridad: cita.prioridad || prioridadPorTipo(cita.tipo || cita.tipo_caso || ''),
+    fecha: String(cita.fecha || cita.fecha_cita || '').slice(0, 10),
+    hora: String(cita.hora || cita.hora_cita || '').slice(0, 5),
+    estado: cita.estado || 'Pendiente',
+    obs: cita.obs || cita.observaciones || '',
+  };
+}
+
+async function cargarCitasRemotas(mostrarError = false) {
+  try {
+    const response = await fetch(CITAS_URL, { cache: 'no-store' });
+    if (!response.ok) throw new Error('No se pudieron consultar las citas');
+
+    const data = await response.json();
+    const lista = Array.isArray(data) ? data : data.citas;
+    if (!Array.isArray(lista)) throw new Error('Respuesta de citas invalida');
+
+    citas = lista.map(normalizarCitaRemota).filter(cita => cita.id || cita.dueno || cita.mascota);
+    nextId = citas.reduce((max, cita) => Math.max(max, cita.id), 0) + 1;
+    guardarCitas();
+    updateStats();
+    renderCitas(citas);
+  } catch (error) {
+    console.warn('Usando citas locales porque no se pudo consultar n8n/MySQL.', error);
+    if (mostrarError) showToast('No pude cargar citas desde n8n. Mostrando datos locales.', true);
+    renderCitas(citas);
+    updateStats();
   }
 }
 
@@ -251,6 +291,7 @@ async function agendarCita() {
     });
 
     if (!response.ok) throw new Error('Webhook sin respuesta OK');
+    await cargarCitasRemotas();
     showToast(`Cita agendada para ${mascota}. Notificacion enviada.`);
   } catch {
     showToast(`Cita agendada para ${mascota}. n8n queda pendiente.`);
@@ -281,4 +322,5 @@ document.addEventListener('DOMContentLoaded', () => {
   fecha.min = fechaLocalISO();
   fecha.addEventListener('change', evalDMN);
   updateStats();
+  cargarCitasRemotas();
 });

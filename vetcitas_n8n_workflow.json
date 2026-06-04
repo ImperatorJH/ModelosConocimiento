@@ -202,6 +202,72 @@
         1020,
         660
       ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "citas",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-listar-citas",
+      "name": "Listar Citas (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        900
+      ],
+      "webhookId": "vetcitas-listar-citas-001",
+      "notes": "Endpoint GET /webhook/citas para que todos los equipos carguen la misma agenda desde MySQL."
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  c.id_cita AS id,\n  CONCAT(cl.nombres, ' ', cl.apellidos) AS dueno,\n  cl.telefono,\n  cl.email,\n  m.nombre AS mascota,\n  m.especie,\n  c.tipo_caso,\n  c.prioridad,\n  DATE_FORMAT(c.fecha_cita, '%Y-%m-%d') AS fecha,\n  TIME_FORMAT(c.hora_cita, '%H:%i') AS hora,\n  c.estado,\n  c.observaciones AS obs\nFROM citas c\nJOIN clientes cl ON cl.id_cliente = c.id_cliente\nJOIN mascotas m ON m.id_mascota = c.id_mascota\nORDER BY c.fecha_cita DESC, c.hora_cita DESC\nLIMIT 200;",
+        "options": {}
+      },
+      "id": "mysql-consultar-citas",
+      "name": "Consultar Citas en MySQL",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2,
+      "position": [
+        520,
+        900
+      ],
+      "credentials": {
+        "mySql": {
+          "name": "VetCitas MySQL"
+        }
+      },
+      "notes": "Lee la agenda central desde MySQL."
+    },
+    {
+      "parameters": {
+        "jsCode": "const citas = $input.all().map((item) => item.json);\nreturn [{ json: { success: true, citas } }];"
+      },
+      "id": "preparar-respuesta-citas",
+      "name": "Preparar Respuesta Citas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "response-citas",
+      "name": "Responder Citas",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1080,
+        900
+      ]
     }
   ],
   "connections": {
@@ -288,6 +354,39 @@
         [
           {
             "node": "Responder OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Listar Citas (Webhook)": {
+      "main": [
+        [
+          {
+            "node": "Consultar Citas en MySQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Citas en MySQL": {
+      "main": [
+        [
+          {
+            "node": "Preparar Respuesta Citas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Respuesta Citas": {
+      "main": [
+        [
+          {
+            "node": "Responder Citas",
             "type": "main",
             "index": 0
           }
