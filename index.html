@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VetCitas - Agendamiento de Citas</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=20260603-fresh-ui">
 </head>
 <body>
 
@@ -22,9 +22,32 @@
 <div id="page-dashboard" class="page active">
   <div class="container">
     <div class="hero">
-      <h1>Sistema de Agendamiento Veterinario</h1>
-      <p>Gestion de citas con validacion automatica de disponibilidad, reglas DMN y envio opcional a n8n.</p>
-      <button class="hero-btn" onclick="showPage('nueva')">Agendar nueva cita</button>
+      <div class="hero-content">
+        <div class="eyebrow">Modelos del conocimiento + automatizacion</div>
+        <h1>Sistema de Agendamiento Veterinario</h1>
+        <p>Gestion de citas con disponibilidad centralizada, reglas DMN, verificacion por email y sincronizacion mediante n8n y MySQL.</p>
+        <div class="hero-actions">
+          <button class="hero-btn" onclick="showPage('nueva')">Agendar nueva cita</button>
+          <button class="ghost-btn" onclick="showPage('citas')">Ver agenda</button>
+        </div>
+      </div>
+      <div class="hero-panel">
+        <div class="panel-title">Flujo activo</div>
+        <div class="pipeline">
+          <span>Web</span>
+          <span>n8n</span>
+          <span>MySQL</span>
+          <span>Email</span>
+        </div>
+        <div class="hero-mini">
+          <strong>DMN</strong>
+          <span>Prioridad, disponibilidad y registro automatico.</span>
+        </div>
+        <div class="hero-mini">
+          <strong>BPMN</strong>
+          <span>Proceso AS-IS y TO-BE documentado.</span>
+        </div>
+      </div>
     </div>
 
     <div class="cards-grid">
@@ -32,7 +55,7 @@
         <div class="stat-icon">#</div>
         <div>
           <div class="stat-num" id="stat-total">0</div>
-          <div class="stat-label">Citas totales</div>
+          <div class="stat-label">Citas en agenda</div>
         </div>
       </div>
       <div class="stat-card">
@@ -89,6 +112,12 @@
 
 <div id="page-nueva" class="page">
   <div class="container">
+    <div class="page-head">
+      <div>
+        <div class="section-label">Captura</div>
+        <div class="section-heading">Nueva Cita</div>
+      </div>
+    </div>
     <div class="form-card">
       <div class="form-title">Nueva Cita</div>
       <div class="form-subtitle">Complete los datos del paciente. El sistema validara disponibilidad antes de guardar.</div>
@@ -162,8 +191,12 @@
 
 <div id="page-citas" class="page">
   <div class="container">
-    <div class="section-label">Gestion</div>
-    <div class="section-heading">Citas Registradas</div>
+    <div class="page-head">
+      <div>
+        <div class="section-label">Gestion</div>
+        <div class="section-heading">Citas Registradas</div>
+      </div>
+    </div>
     <div class="table-card">
       <div class="table-header">
         <div class="table-title">Lista de citas</div>
@@ -192,8 +225,12 @@
 
 <div id="page-flujo" class="page">
   <div class="container">
-    <div class="section-label">Proceso</div>
-    <div class="section-heading">Flujo BPMN - AS-IS y TO-BE</div>
+    <div class="page-head">
+      <div>
+        <div class="section-label">Proceso</div>
+        <div class="section-heading">Flujo BPMN - AS-IS y TO-BE</div>
+      </div>
+    </div>
 
     <div class="flow-card">
       <div class="flow-title">AS-IS - Proceso Actual Manual</div>
@@ -328,6 +365,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="./script.js?v=20260603-db-sync"></script>
+<script src="./script.js?v=20260603-fresh-ui"></script>
 </body>
 </html>
