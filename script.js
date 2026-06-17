@@ -222,7 +222,7 @@ async function cancelarCita(id) {
     const response = await fetch(CANCELAR_CITA_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id_cita: id }),
+      body: JSON.stringify({ id_cita: id, estado: 'Cancelada' }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || data.success === false) {

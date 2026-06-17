@@ -320,7 +320,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "CALL sp_actualizar_estado_cita(\n  {{ $('Preparar Cancelar Cita').item.json.id_cita }},\n  'Cancelada',\n  'frontend'\n);",
+        "query": "UPDATE citas\nSET estado = 'Cancelada'\nWHERE id_cita = {{ $('Preparar Cancelar Cita').item.json.id_cita }};",
         "options": {}
       },
       "id": "mysql-eliminar-cita",
