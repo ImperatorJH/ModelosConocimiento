@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VetCitas - Agendamiento de Citas</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=20260617-mascotas">
+  <link rel="stylesheet" href="./styles.css?v=20260617-canceladas">
 </head>
 <body>
 
@@ -163,6 +163,22 @@
 
       <button class="submit-btn" onclick="crearCliente()">Guardar Cliente y Mascotas</button>
     </div>
+
+    <div class="table-card clients-panel">
+      <div class="table-header">
+        <div>
+          <div class="table-title">Clientes registrados</div>
+          <div class="table-subtitle">Propietarios y mascotas sincronizados desde MySQL.</div>
+        </div>
+        <div class="toolbar-actions">
+          <input class="search-input" type="text" placeholder="Buscar cliente o mascota..." oninput="filtrarClientes(this.value)">
+          <button class="btn-action" type="button" onclick="cargarClientesRemotos(true)">Actualizar</button>
+        </div>
+      </div>
+      <div class="clients-list" id="clientes-list">
+        <div class="empty-row">Cargando clientes...</div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -247,7 +263,17 @@
     <div class="table-card">
       <div class="table-header">
         <div class="table-title">Lista de citas</div>
-        <input class="search-input" type="text" placeholder="Buscar..." oninput="filtrarCitas(this.value)">
+        <div class="toolbar-actions">
+          <input class="search-input" type="text" placeholder="Buscar..." oninput="filtrarCitas(this.value)">
+          <select class="filter-select" onchange="filtrarCitasEstado(this.value)">
+            <option value="">Todos los estados</option>
+            <option value="Confirmada">Confirmadas</option>
+            <option value="Pendiente">Pendientes</option>
+            <option value="Cancelada">Canceladas</option>
+            <option value="Finalizada">Finalizadas</option>
+          </select>
+          <button class="btn-action" type="button" onclick="cargarCitasRemotas(true)">Actualizar</button>
+        </div>
       </div>
       <div class="table-scroll">
         <table id="tabla-citas">
@@ -373,7 +399,7 @@
           <div class="step-content">
             <span class="step-tag bpmn">Fin</span>
             <h4>Cita confirmada y visible</h4>
-            <p>La recepcion puede ver, filtrar, confirmar, poner pendiente o eliminar citas.</p>
+            <p>La recepcion puede ver, filtrar, confirmar, poner pendiente o cancelar citas.</p>
           </div>
         </div>
       </div>
@@ -412,6 +438,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="./script.js?v=20260617-mascotas"></script>
+<script src="./script.js?v=20260617-canceladas"></script>
 </body>
 </html>

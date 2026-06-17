@@ -356,6 +356,18 @@ header {
   font-size: 1.25rem;
 }
 
+.table-subtitle {
+  color: var(--gris);
+  font-size: 0.84rem;
+  margin-top: 4px;
+}
+
+.toolbar-actions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
 .table-scroll {
   overflow-x: auto;
 }
@@ -373,6 +385,16 @@ header {
 
 .search-input:focus {
   border-color: var(--verde-claro);
+}
+
+.filter-select {
+  border: 1.5px solid #e5e7eb;
+  border-radius: 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  outline: none;
+  padding: 8px 12px;
+  width: 180px;
 }
 
 table {
@@ -445,6 +467,11 @@ tr:hover td {
   color: #6b7280;
 }
 
+.badge-cancel {
+  background: #fee2e2;
+  color: var(--rojo);
+}
+
 .btn-action {
   background: var(--verde-suave);
   border: none;
@@ -460,6 +487,11 @@ tr:hover td {
 
 .btn-action:hover {
   background: #b7e4c7;
+}
+
+.btn-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 
 .btn-action.danger {
@@ -547,6 +579,59 @@ tr:hover td {
   height: 42px;
   margin: 0;
   width: 100%;
+}
+
+.clients-panel {
+  margin-top: 30px;
+}
+
+.clients-list {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.client-card {
+  background: #fbfdfb;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.client-main {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.client-main h3 {
+  color: var(--verde);
+  font-size: 1rem;
+  margin-bottom: 4px;
+}
+
+.client-main p {
+  color: var(--gris);
+  font-size: 0.84rem;
+}
+
+.client-pets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.pet-chip {
+  background: var(--verde-suave);
+  border: 1px solid rgba(23, 98, 74, 0.14);
+  border-radius: 8px;
+  color: var(--verde);
+  display: inline-flex;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
 }
 
 label {
@@ -803,7 +888,17 @@ textarea {
     gap: 12px;
   }
 
+  .toolbar-actions,
+  .client-main {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .search-input {
+    width: 100%;
+  }
+
+  .filter-select {
     width: 100%;
   }
 

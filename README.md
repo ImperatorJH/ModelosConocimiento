@@ -5,8 +5,10 @@ Aplicacion web estatica para gestionar clientes, mascotas y citas veterinarias c
 ## Flujo actual
 
 - Registra clientes con una o varias mascotas desde la pantalla `Clientes`.
+- Consulta clientes y mascotas desde MySQL.
 - Agenda citas pidiendo la identificacion del propietario y cargando sus mascotas desde MySQL.
 - Lista citas desde MySQL mediante n8n.
+- Cancela citas en MySQL mediante n8n, conservando el registro.
 - Usa reglas DMN simples para prioridad y disponibilidad.
 - Envia confirmacion por email desde el flujo n8n.
 
@@ -42,6 +44,8 @@ http://localhost:82
 ```text
 POST /api/webhook/cliente
 POST /api/webhook/nueva-cita
+POST /api/webhook/eliminar-cita
+GET  /api/webhook/clientes
 GET  /api/webhook/mascotas?identificacion=1001
 GET  /api/webhook/citas
 ```

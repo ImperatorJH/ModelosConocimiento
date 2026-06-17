@@ -3,6 +3,8 @@ const WEBHOOK_URL = '/api/webhook/nueva-cita';
 const CITAS_URL = '/api/webhook/citas';
 const CLIENTE_URL = '/api/webhook/cliente';
 const MASCOTAS_URL = '/api/webhook/mascotas';
+const CLIENTES_URL = '/api/webhook/clientes';
+const CANCELAR_CITA_URL = '/api/webhook/eliminar-cita';
 
 const citasIniciales = [
   { id: 1, identificacion: '1001', dueno: 'Laura Martinez', telefono: '300 111 2233', email: 'laura@example.com', mascota: 'Rex', especie: 'Perro', tipo: 'Emergencia', prioridad: 'Alta', fecha: '2026-06-03', hora: '08:00', estado: 'Confirmada', obs: 'Vomitos frecuentes' },
@@ -14,6 +16,9 @@ const citasIniciales = [
 
 let citas = cargarCitas();
 let nextId = citas.reduce((max, cita) => Math.max(max, cita.id), 0) + 1;
+let clientes = [];
+let filtroCitasTexto = '';
+let filtroCitasEstado = '';
 
 function cargarCitas() {
   try {
@@ -55,11 +60,11 @@ async function cargarCitasRemotas(mostrarError = false) {
     nextId = citas.reduce((max, cita) => Math.max(max, cita.id), 0) + 1;
     guardarCitas();
     updateStats();
-    renderCitas(citas);
+    aplicarFiltrosCitas();
   } catch (error) {
     console.warn('Usando citas locales porque no se pudo consultar n8n/MySQL.', error);
     if (mostrarError) showToast('No pude cargar citas desde n8n. Mostrando datos locales.', true);
-    renderCitas(citas);
+    aplicarFiltrosCitas();
     updateStats();
   }
 }
@@ -78,7 +83,8 @@ function showPage(name, trigger) {
   const activeBtn = trigger || document.querySelector(`.nav-btn[data-page="${name}"]`);
   if (activeBtn) activeBtn.classList.add('active');
 
-  if (name === 'citas') renderCitas(citas);
+  if (name === 'citas') aplicarFiltrosCitas();
+  if (name === 'clientes') cargarClientesRemotos();
   if (name === 'dashboard') updateStats();
 }
 
@@ -110,7 +116,11 @@ function prioridadBadge(prioridad) {
 }
 
 function estadoBadge(estado) {
-  return estado === 'Confirmada' ? 'badge-conf' : 'badge-pend';
+  if (estado === 'Confirmada') return 'badge-conf';
+  if (estado === 'Cancelada') return 'badge-cancel';
+  if (estado === 'Finalizada') return 'badge-baja';
+  if (estado === 'En atencion') return 'badge-media';
+  return 'badge-pend';
 }
 
 function formatearHora(hora) {
@@ -148,22 +158,36 @@ function renderCitas(lista) {
       <td>${cita.fecha}<br><span class="muted-cell">${formatearHora(cita.hora)}</span></td>
       <td><span class="badge ${estadoBadge(cita.estado)}">${cita.estado}</span></td>
       <td class="actions-cell">
-        <button class="btn-action" onclick="toggleEstado(${cita.id})">
+        <button class="btn-action" onclick="toggleEstado(${cita.id})" ${cita.estado === 'Cancelada' ? 'disabled' : ''}>
           ${cita.estado === 'Pendiente' ? 'Confirmar' : 'Pendiente'}
         </button>
-        <button class="btn-action danger" onclick="eliminarCita(${cita.id})">Eliminar</button>
+        <button class="btn-action danger" onclick="cancelarCita(${cita.id})" ${cita.estado === 'Cancelada' ? 'disabled' : ''}>Cancelar</button>
       </td>
     </tr>
   `).join('');
 }
 
 function filtrarCitas(query) {
-  const q = query.trim().toLowerCase();
+  filtroCitasTexto = query;
+  aplicarFiltrosCitas();
+}
+
+function filtrarCitasEstado(estado) {
+  filtroCitasEstado = estado;
+  aplicarFiltrosCitas();
+}
+
+function aplicarFiltrosCitas() {
+  const q = filtroCitasTexto.trim().toLowerCase();
   const filtradas = citas.filter(cita =>
-    cita.dueno.toLowerCase().includes(q) ||
-    cita.mascota.toLowerCase().includes(q) ||
-    cita.tipo.toLowerCase().includes(q) ||
-    cita.fecha.includes(q)
+    (!filtroCitasEstado || cita.estado === filtroCitasEstado) &&
+    (
+      cita.dueno.toLowerCase().includes(q) ||
+      cita.mascota.toLowerCase().includes(q) ||
+      cita.tipo.toLowerCase().includes(q) ||
+      cita.estado.toLowerCase().includes(q) ||
+      cita.fecha.includes(q)
+    )
   );
   renderCitas(filtradas);
 }
@@ -174,18 +198,45 @@ function toggleEstado(id) {
 
   cita.estado = cita.estado === 'Confirmada' ? 'Pendiente' : 'Confirmada';
   guardarCitas();
-  renderCitas(citas);
+  aplicarFiltrosCitas();
   updateStats();
   showToast(`Cita ${cita.estado === 'Confirmada' ? 'confirmada' : 'marcada como pendiente'}.`);
 }
 
-function eliminarCita(id) {
-  citas = citas.filter(item => item.id !== id);
+async function cancelarCita(id) {
+  const cita = citas.find(item => item.id === id);
+  if (!cita) return;
+  if (cita.estado === 'Cancelada') return;
+
+  const confirmar = window.confirm(`Cancelar la cita #${id} de ${cita.mascota}?`);
+  if (!confirmar) return;
+
+  const estadoAnterior = cita.estado;
+  cita.estado = 'Cancelada';
   guardarCitas();
-  renderCitas(citas);
+  aplicarFiltrosCitas();
   updateStats();
   evalDMN();
-  showToast('Cita eliminada.');
+
+  try {
+    const response = await fetch(CANCELAR_CITA_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_cita: id }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.success === false) {
+      throw new Error(data.message || 'No se pudo cancelar en MySQL');
+    }
+    await cargarCitasRemotas();
+    showToast('Cita cancelada en MySQL.');
+  } catch (error) {
+    cita.estado = estadoAnterior;
+    guardarCitas();
+    aplicarFiltrosCitas();
+    updateStats();
+    showToast(error.message || 'No se pudo cancelar la cita en n8n/MySQL.', true);
+  }
 }
 
 function horarioOcupado(fecha, hora) {
@@ -337,10 +388,105 @@ async function crearCliente() {
     if (fieldValue('f-identificacion') === identificacion) {
       await cargarMascotasCliente(false);
     }
+    await cargarClientesRemotos();
     showToast(`Cliente ${nombres} ${apellidos} registrado.`);
   } catch (error) {
     showToast(error.message || 'No se pudo registrar el cliente en n8n.', true);
   }
+}
+
+function normalizarClienteRemoto(cliente) {
+  return {
+    id: Number(cliente.id || cliente.id_cliente || 0),
+    identificacion: cliente.identificacion || '',
+    nombres: cliente.nombres || '',
+    apellidos: cliente.apellidos || '',
+    telefono: cliente.telefono || '',
+    email: cliente.email || '',
+    direccion: cliente.direccion || '',
+    mascotas: Array.isArray(cliente.mascotas) ? cliente.mascotas : [],
+  };
+}
+
+async function cargarClientesRemotos(mostrarError = false) {
+  const contenedor = document.getElementById('clientes-list');
+  if (!contenedor) return;
+
+  contenedor.innerHTML = '<div class="empty-row">Cargando clientes...</div>';
+
+  try {
+    const response = await fetch(CLIENTES_URL, { cache: 'no-store' });
+    if (!response.ok) throw new Error('No se pudieron consultar los clientes');
+
+    const data = await response.json();
+    const lista = Array.isArray(data) ? data : data.clientes;
+    if (!Array.isArray(lista)) throw new Error('Respuesta de clientes invalida');
+
+    clientes = lista.map(normalizarClienteRemoto);
+    renderClientes(clientes);
+  } catch (error) {
+    console.warn('No se pudieron cargar clientes desde n8n/MySQL.', error);
+    contenedor.innerHTML = '<div class="empty-row">No se pudieron cargar clientes desde n8n/MySQL.</div>';
+    if (mostrarError) showToast('No pude cargar clientes desde n8n/MySQL.', true);
+  }
+}
+
+function renderClientes(lista) {
+  const contenedor = document.getElementById('clientes-list');
+
+  if (!lista.length) {
+    contenedor.innerHTML = '<div class="empty-row">No hay clientes registrados.</div>';
+    return;
+  }
+
+  contenedor.innerHTML = lista.map(cliente => {
+    const nombreCompleto = `${cliente.nombres} ${cliente.apellidos}`.trim();
+    const identificacionArg = JSON.stringify(cliente.identificacion).replace(/"/g, '&quot;');
+    const mascotasHtml = cliente.mascotas.length
+      ? cliente.mascotas.map(mascota => `
+          <span class="pet-chip">
+            <strong>${escapeHtml(mascota.nombre)}</strong>
+            ${escapeHtml(mascota.especie)}
+          </span>
+        `).join('')
+      : '<span class="muted-cell">Sin mascotas registradas</span>';
+
+    return `
+      <article class="client-card">
+        <div class="client-main">
+          <div>
+            <h3>${escapeHtml(nombreCompleto || 'Cliente sin nombre')}</h3>
+            <p>ID ${escapeHtml(cliente.identificacion)} - ${escapeHtml(cliente.telefono)} - ${escapeHtml(cliente.email)}</p>
+          </div>
+          <button class="btn-action" type="button" onclick="usarClienteEnCita(${identificacionArg})">Agendar</button>
+        </div>
+        <div class="client-pets">${mascotasHtml}</div>
+      </article>
+    `;
+  }).join('');
+}
+
+function filtrarClientes(query) {
+  const q = query.trim().toLowerCase();
+  const filtrados = clientes.filter(cliente =>
+    cliente.identificacion.toLowerCase().includes(q) ||
+    cliente.nombres.toLowerCase().includes(q) ||
+    cliente.apellidos.toLowerCase().includes(q) ||
+    cliente.telefono.toLowerCase().includes(q) ||
+    cliente.email.toLowerCase().includes(q) ||
+    cliente.mascotas.some(mascota =>
+      String(mascota.nombre || '').toLowerCase().includes(q) ||
+      String(mascota.especie || '').toLowerCase().includes(q)
+    )
+  );
+  renderClientes(filtrados);
+}
+
+async function usarClienteEnCita(identificacion) {
+  showPage('nueva');
+  document.getElementById('f-identificacion').value = identificacion;
+  await cargarMascotasCliente(false);
+  showToast('Cliente cargado para agendar cita.');
 }
 
 async function cargarMascotasCliente(mostrarError = false) {
@@ -426,7 +572,7 @@ async function agendarCita() {
   guardarCitas();
   resetFormulario();
   updateStats();
-  renderCitas(citas);
+  aplicarFiltrosCitas();
 
   try {
     const response = await fetch(WEBHOOK_URL, {
@@ -488,4 +634,5 @@ document.addEventListener('DOMContentLoaded', () => {
   agregarMascotaCliente();
   updateStats();
   cargarCitasRemotas();
+  cargarClientesRemotos();
 });

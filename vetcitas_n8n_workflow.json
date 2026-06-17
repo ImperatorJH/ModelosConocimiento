@@ -238,6 +238,112 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [1340, 960]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "clientes",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-clientes",
+      "name": "Listar Clientes (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 1240],
+      "webhookId": "vetcitas-clientes-001",
+      "notes": "Endpoint GET /webhook/clientes para consultar propietarios con sus mascotas."
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  cl.id_cliente,\n  cl.identificacion,\n  cl.nombres,\n  cl.apellidos,\n  cl.telefono,\n  cl.email,\n  cl.direccion,\n  m.id_mascota,\n  m.nombre AS mascota_nombre,\n  m.especie AS mascota_especie,\n  m.raza AS mascota_raza,\n  m.observaciones AS mascota_observaciones\nFROM clientes cl\nLEFT JOIN mascotas m ON m.id_cliente = cl.id_cliente\nWHERE cl.activo = 1\nORDER BY cl.nombres ASC, cl.apellidos ASC, m.nombre ASC;",
+        "options": {}
+      },
+      "id": "mysql-consultar-clientes",
+      "name": "Consultar Clientes en MySQL",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2,
+      "position": [500, 1240],
+      "credentials": {
+        "mySql": {
+          "name": "VetCitas MySQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const clientes = new Map();\nfor (const item of $input.all()) {\n  const row = item.json;\n  const id = row.id_cliente;\n  if (!clientes.has(id)) {\n    clientes.set(id, {\n      id,\n      identificacion: row.identificacion,\n      nombres: row.nombres,\n      apellidos: row.apellidos,\n      telefono: row.telefono,\n      email: row.email,\n      direccion: row.direccion,\n      mascotas: []\n    });\n  }\n  if (row.id_mascota) {\n    clientes.get(id).mascotas.push({\n      id: row.id_mascota,\n      nombre: row.mascota_nombre,\n      especie: row.mascota_especie,\n      raza: row.mascota_raza,\n      observaciones: row.mascota_observaciones\n    });\n  }\n}\nreturn [{ json: { success: true, clientes: [...clientes.values()] } }];"
+      },
+      "id": "preparar-respuesta-clientes",
+      "name": "Preparar Respuesta Clientes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [780, 1240]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "response-clientes",
+      "name": "Responder Clientes",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1060, 1240]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "eliminar-cita",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-eliminar-cita",
+      "name": "Cancelar Cita (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 1520],
+      "webhookId": "vetcitas-eliminar-cita-001",
+      "notes": "Endpoint POST /webhook/eliminar-cita para cancelar una cita por id_cita sin borrar el registro."
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst body = input.body || input;\nconst id = Number(body.id_cita || body.id || 0);\nif (!Number.isInteger(id) || id <= 0) {\n  throw new Error('Debe enviar un id_cita valido.');\n}\nreturn [{ json: { id_cita: id } }];"
+      },
+      "id": "preparar-eliminar-cita",
+      "name": "Preparar Cancelar Cita",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 1520]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "CALL sp_actualizar_estado_cita(\n  {{ $('Preparar Cancelar Cita').item.json.id_cita }},\n  'Cancelada',\n  'frontend'\n);",
+        "options": {}
+      },
+      "id": "mysql-eliminar-cita",
+      "name": "Cancelar Cita en MySQL",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2,
+      "position": [780, 1520],
+      "credentials": {
+        "mySql": {
+          "name": "VetCitas MySQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"message\": \"Cita cancelada correctamente\", \"id_cita\": $('Preparar Cancelar Cita').item.json.id_cita, \"estado\": \"Cancelada\" } }}"
+      },
+      "id": "response-eliminar-cita",
+      "name": "Responder Cancelar Cita",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1060, 1520]
     }
   ],
   "connections": {
@@ -282,13 +388,31 @@
     },
     "Preparar Respuesta Mascotas": {
       "main": [[{ "node": "Responder Mascotas", "type": "main", "index": 0 }]]
+    },
+    "Listar Clientes (Webhook)": {
+      "main": [[{ "node": "Consultar Clientes en MySQL", "type": "main", "index": 0 }]]
+    },
+    "Consultar Clientes en MySQL": {
+      "main": [[{ "node": "Preparar Respuesta Clientes", "type": "main", "index": 0 }]]
+    },
+    "Preparar Respuesta Clientes": {
+      "main": [[{ "node": "Responder Clientes", "type": "main", "index": 0 }]]
+    },
+    "Cancelar Cita (Webhook)": {
+      "main": [[{ "node": "Preparar Cancelar Cita", "type": "main", "index": 0 }]]
+    },
+    "Preparar Cancelar Cita": {
+      "main": [[{ "node": "Cancelar Cita en MySQL", "type": "main", "index": 0 }]]
+    },
+    "Cancelar Cita en MySQL": {
+      "main": [[{ "node": "Responder Cancelar Cita", "type": "main", "index": 0 }]]
     }
   },
   "settings": {
     "executionOrder": "v1"
   },
   "meta": {
-    "description": "Flujo n8n para VetCitas. Registra clientes y mascotas, agenda citas por identificacion y lista la agenda desde MySQL.",
+    "description": "Flujo n8n para VetCitas. Registra clientes y mascotas, agenda citas por identificacion, lista clientes/citas y cancela citas en MySQL.",
     "project": "Modelos de Conocimiento - Agendamiento de Citas"
   }
 }
