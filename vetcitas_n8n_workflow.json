@@ -4,204 +4,124 @@
     {
       "parameters": {
         "httpMethod": "POST",
+        "path": "cliente",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-cliente",
+      "name": "Recibir Cliente (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 80],
+      "webhookId": "vetcitas-cliente-001",
+      "notes": "Registra o actualiza cliente y crea mascota base. Endpoint: POST /webhook/cliente."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nfunction clean(value) { return String(value || '').trim(); }\nfunction sql(value) { return clean(value).replace(/'/g, \"''\"); }\nconst cliente = {\n  identificacion: clean(body.identificacion),\n  nombres: clean(body.nombres),\n  apellidos: clean(body.apellidos),\n  telefono: clean(body.telefono),\n  email: clean(body.email).toLowerCase(),\n  direccion: clean(body.direccion),\n  mascota: clean(body.mascota),\n  especie: clean(body.especie),\n  raza: clean(body.raza),\n  observaciones: clean(body.observaciones)\n};\nconst faltantes = ['identificacion', 'nombres', 'apellidos', 'telefono', 'email', 'mascota', 'especie'].filter((campo) => !cliente[campo]);\nif (faltantes.length) {\n  throw new Error(`Faltan campos obligatorios: ${faltantes.join(', ')}`);\n}\nreturn [{ json: {\n  ...cliente,\n  sql_identificacion: sql(cliente.identificacion),\n  sql_nombres: sql(cliente.nombres),\n  sql_apellidos: sql(cliente.apellidos),\n  sql_telefono: sql(cliente.telefono),\n  sql_email: sql(cliente.email),\n  sql_direccion: sql(cliente.direccion),\n  sql_mascota: sql(cliente.mascota),\n  sql_especie: sql(cliente.especie),\n  sql_raza: sql(cliente.raza),\n  sql_observaciones: sql(cliente.observaciones)\n} }];"
+      },
+      "id": "preparar-cliente",
+      "name": "Preparar Cliente",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 80]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "CALL sp_registrar_cliente_mascota(\n  '{{ $('Preparar Cliente').item.json.sql_identificacion }}',\n  '{{ $('Preparar Cliente').item.json.sql_nombres }}',\n  '{{ $('Preparar Cliente').item.json.sql_apellidos }}',\n  '{{ $('Preparar Cliente').item.json.sql_telefono }}',\n  '{{ $('Preparar Cliente').item.json.sql_email }}',\n  '{{ $('Preparar Cliente').item.json.sql_direccion }}',\n  '{{ $('Preparar Cliente').item.json.sql_mascota }}',\n  '{{ $('Preparar Cliente').item.json.sql_especie }}',\n  '{{ $('Preparar Cliente').item.json.sql_raza }}',\n  '{{ $('Preparar Cliente').item.json.sql_observaciones }}'\n);",
+        "options": {}
+      },
+      "id": "mysql-registrar-cliente",
+      "name": "Guardar Cliente y Mascota",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2,
+      "position": [780, 80],
+      "credentials": {
+        "mySql": {
+          "name": "VetCitas MySQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"success\": true, \"message\": \"Cliente registrado correctamente\", \"cliente\": { \"identificacion\": \"{{ $('Preparar Cliente').item.json.identificacion }}\", \"nombres\": \"{{ $('Preparar Cliente').item.json.nombres }}\", \"apellidos\": \"{{ $('Preparar Cliente').item.json.apellidos }}\", \"mascota\": \"{{ $('Preparar Cliente').item.json.mascota }}\" } }"
+      },
+      "id": "response-cliente",
+      "name": "Responder Cliente OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1060, 80]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
         "path": "nueva-cita",
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "webhook-trigger",
+      "id": "webhook-cita",
       "name": "Recibir Nueva Cita (Webhook)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [
-        240,
-        300
-      ],
+      "position": [220, 360],
       "webhookId": "vetcitas-webhook-001",
-      "notes": "El formulario HTML hace POST a este endpoint. Datos esperados: dueno, telefono, email, mascota, especie, tipo_caso, fecha, hora, observaciones. El cliente se verifica por email."
+      "notes": "Agenda cita usando identificacion del propietario. Endpoint: POST /webhook/nueva-cita."
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.first().json.body || $input.first().json;\n\nfunction clean(value) {\n  return String(value || '').trim();\n}\n\nfunction sql(value) {\n  return clean(value).replace(/'/g, \"''\");\n}\n\nconst dueno = clean(body.dueno);\nconst partesNombre = dueno.split(/\\s+/).filter(Boolean);\nconst nombres = partesNombre.length > 1 ? partesNombre.slice(0, -1).join(' ') : dueno;\nconst apellidos = partesNombre.length > 1 ? partesNombre.slice(-1).join(' ') : 'Sin apellido';\nconst email = clean(body.email).toLowerCase();\nconst telefono = clean(body.telefono);\nconst clienteWhere = email ? `email = '${sql(email)}'` : `telefono = '${sql(telefono)}'`;\n\nconst tipoEntrada = clean(body.tipo_caso || body.tipo || 'Consulta general');\nconst tipo = tipoEntrada === 'Vacunacion' ? 'Vacunación' : tipoEntrada;\nconst observaciones = clean(body.observaciones || body.obs);\nconst hora = clean(body.hora).slice(0, 5);\n\nconst prioridades = {\n  'Emergencia': 'Alta',\n  'Consulta general': 'Media',\n  'Vacunación': 'Baja'\n};\n\nconst prioridad = body.prioridad || prioridades[tipo] || 'Media';\nconst disponible = true;\nconst accion = disponible ? 'Verificar cliente por email y confirmar' : 'Mostrar horarios alternativos';\nconst estado = body.estado || 'Confirmada';\n\nreturn [{\n  json: {\n    dueno,\n    nombres,\n    apellidos,\n    telefono,\n    email,\n    mascota: clean(body.mascota),\n    especie: clean(body.especie),\n    tipo_caso: tipo,\n    prioridad,\n    fecha: clean(body.fecha),\n    hora,\n    hora_formateada: body.hora_formateada || hora,\n    verificacion_cliente: 'email',\n    observaciones,\n    accion_dmn: accion,\n    estado,\n    disponible,\n    fecha_creacion: body.creado_en || new Date().toISOString(),\n    sql_nombres: sql(nombres),\n    sql_apellidos: sql(apellidos),\n    sql_telefono: sql(telefono),\n    sql_email: sql(email),\n    sql_cliente_where: clienteWhere,\n    sql_mascota: sql(body.mascota),\n    sql_especie: sql(body.especie),\n    sql_tipo_caso: sql(tipo),\n    sql_prioridad: sql(prioridad),\n    sql_fecha: sql(body.fecha),\n    sql_hora: sql(hora),\n    sql_estado: sql(estado),\n    sql_accion_dmn: sql(accion),\n    sql_observaciones: sql(observaciones)\n  }\n}];"
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nfunction clean(value) { return String(value || '').trim(); }\nfunction sql(value) { return clean(value).replace(/'/g, \"''\"); }\nconst tipo = clean(body.tipo_caso || body.tipo || 'Consulta general');\nconst hora = clean(body.hora).slice(0, 5);\nconst prioridades = { 'Emergencia': 'Alta', 'Consulta general': 'Media', 'Vacunacion': 'Baja' };\nconst cita = {\n  identificacion: clean(body.identificacion),\n  mascota: clean(body.mascota),\n  especie: clean(body.especie),\n  tipo_caso: tipo,\n  prioridad: prioridades[tipo] || 'Media',\n  fecha: clean(body.fecha),\n  hora,\n  hora_formateada: body.hora_formateada || hora,\n  observaciones: clean(body.observaciones || body.obs)\n};\nconst faltantes = ['identificacion', 'mascota', 'especie', 'tipo_caso', 'fecha', 'hora'].filter((campo) => !cita[campo]);\nif (faltantes.length) {\n  throw new Error(`Faltan campos obligatorios: ${faltantes.join(', ')}`);\n}\nreturn [{ json: {\n  ...cita,\n  sql_identificacion: sql(cita.identificacion),\n  sql_mascota: sql(cita.mascota),\n  sql_especie: sql(cita.especie),\n  sql_tipo_caso: sql(cita.tipo_caso),\n  sql_fecha: sql(cita.fecha),\n  sql_hora: sql(cita.hora),\n  sql_observaciones: sql(cita.observaciones)\n} }];"
       },
-      "id": "dmn-logic",
-      "name": "Aplicar Reglas DMN",
+      "id": "preparar-cita",
+      "name": "Preparar Cita",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        500,
-        300
-      ],
-      "notes": "Normaliza campos del frontend y aplica reglas DMN. El cliente se identifica por email y telefono queda como respaldo."
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": false
-          },
-          "conditions": [
-            {
-              "leftValue": "={{ $json.disponible }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            }
-          ]
-        }
-      },
-      "id": "if-disponible",
-      "name": "Horario disponible?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        760,
-        300
-      ],
-      "notes": "Bifurca el flujo segun disponibilidad calculada."
+      "position": [500, 360]
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO clientes (nombres, apellidos, telefono, email)\nSELECT '{{ $('Aplicar Reglas DMN').item.json.sql_nombres }}', '{{ $('Aplicar Reglas DMN').item.json.sql_apellidos }}', '{{ $('Aplicar Reglas DMN').item.json.sql_telefono }}', '{{ $('Aplicar Reglas DMN').item.json.sql_email }}'\nWHERE NOT EXISTS (\n  SELECT 1 FROM clientes WHERE {{ $('Aplicar Reglas DMN').item.json.sql_cliente_where }}\n);",
+        "query": "CALL sp_agendar_cita_identificacion(\n  '{{ $('Preparar Cita').item.json.sql_identificacion }}',\n  '{{ $('Preparar Cita').item.json.sql_mascota }}',\n  '{{ $('Preparar Cita').item.json.sql_especie }}',\n  1,\n  '{{ $('Preparar Cita').item.json.sql_tipo_caso }}',\n  '{{ $('Preparar Cita').item.json.sql_fecha }}',\n  '{{ $('Preparar Cita').item.json.sql_hora }}:00',\n  '{{ $('Preparar Cita').item.json.sql_observaciones }}'\n);",
         "options": {}
       },
-      "id": "mysql-upsert-cliente",
-      "name": "Crear Cliente si no Existe",
+      "id": "mysql-agendar-cita",
+      "name": "Agendar Cita en MySQL",
       "type": "n8n-nodes-base.mySql",
       "typeVersion": 2,
-      "position": [
-        1020,
-        120
-      ],
+      "position": [780, 360],
       "credentials": {
         "mySql": {
           "name": "VetCitas MySQL"
         }
       },
-      "notes": "Evita que una cita de cliente nuevo falle silenciosamente por no existir en la tabla clientes."
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO mascotas (id_cliente, nombre, especie)\nSELECT c.id_cliente, '{{ $('Aplicar Reglas DMN').item.json.sql_mascota }}', '{{ $('Aplicar Reglas DMN').item.json.sql_especie }}'\nFROM clientes c\nWHERE {{ $('Aplicar Reglas DMN').item.json.sql_cliente_where }}\n  AND NOT EXISTS (\n    SELECT 1\n    FROM mascotas m\n    WHERE m.id_cliente = c.id_cliente\n      AND m.nombre = '{{ $('Aplicar Reglas DMN').item.json.sql_mascota }}'\n  )\nLIMIT 1;",
-        "options": {}
-      },
-      "id": "mysql-upsert-mascota",
-      "name": "Crear Mascota si no Existe",
-      "type": "n8n-nodes-base.mySql",
-      "typeVersion": 2,
-      "position": [
-        1280,
-        120
-      ],
-      "credentials": {
-        "mySql": {
-          "name": "VetCitas MySQL"
-        }
-      },
-      "notes": "Crea la mascota asociada al cliente cuando no existe."
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO citas (id_mascota, id_cliente, id_veterinario, tipo_caso, prioridad, fecha_cita, hora_cita, estado, accion_dmn, observaciones)\nSELECT\n  m.id_mascota,\n  c.id_cliente,\n  1 AS id_veterinario,\n  '{{ $('Aplicar Reglas DMN').item.json.sql_tipo_caso }}',\n  '{{ $('Aplicar Reglas DMN').item.json.sql_prioridad }}',\n  '{{ $('Aplicar Reglas DMN').item.json.sql_fecha }}',\n  '{{ $('Aplicar Reglas DMN').item.json.sql_hora }}:00',\n  '{{ $('Aplicar Reglas DMN').item.json.sql_estado }}',\n  '{{ $('Aplicar Reglas DMN').item.json.sql_accion_dmn }}',\n  '{{ $('Aplicar Reglas DMN').item.json.sql_observaciones }}'\nFROM clientes c\nJOIN mascotas m ON m.id_cliente = c.id_cliente\nWHERE {{ $('Aplicar Reglas DMN').item.json.sql_cliente_where }}\n  AND m.nombre = '{{ $('Aplicar Reglas DMN').item.json.sql_mascota }}'\nLIMIT 1;",
-        "options": {}
-      },
-      "id": "mysql-insert",
-      "name": "Guardar Cita en MySQL",
-      "type": "n8n-nodes-base.mySql",
-      "typeVersion": 2,
-      "position": [
-        1540,
-        120
-      ],
-      "credentials": {
-        "mySql": {
-          "name": "VetCitas MySQL"
-        }
-      },
-      "notes": "Inserta la cita despues de asegurar cliente y mascota."
+      "notes": "Usa el procedimiento sp_agendar_cita_identificacion. Si el cliente no existe o el horario esta ocupado, MySQL devuelve error."
     },
     {
       "parameters": {
         "fromEmail": "noreply@vetcitas.com",
-        "toEmail": "={{ $('Aplicar Reglas DMN').item.json.email }}",
-        "subject": "Cita confirmada - {{ $('Aplicar Reglas DMN').item.json.mascota }}",
+        "toEmail": "={{ $json.email }}",
+        "subject": "Cita confirmada - {{ $('Preparar Cita').item.json.mascota }}",
         "emailType": "html",
-        "message": "<h2 style='color:#2d6a4f'>Cita confirmada</h2>\n<p>Hola <strong>{{ $('Aplicar Reglas DMN').item.json.dueno }}</strong>,</p>\n<p>Su cita ha sido agendada exitosamente.</p>\n<table style='border-collapse:collapse;width:100%'>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Mascota</strong></td><td style='padding:8px'>{{ $('Aplicar Reglas DMN').item.json.mascota }}</td></tr>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Tipo</strong></td><td style='padding:8px'>{{ $('Aplicar Reglas DMN').item.json.tipo_caso }}</td></tr>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Fecha</strong></td><td style='padding:8px'>{{ $('Aplicar Reglas DMN').item.json.fecha }}</td></tr>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Hora</strong></td><td style='padding:8px'>{{ $('Aplicar Reglas DMN').item.json.hora_formateada }}</td></tr>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Prioridad</strong></td><td style='padding:8px'>{{ $('Aplicar Reglas DMN').item.json.prioridad }}</td></tr>\n</table>\n<p style='margin-top:16px;color:#6b7280;font-size:0.85em'>VetCitas - Sistema de Agendamiento</p>"
+        "message": "<h2 style='color:#2d6a4f'>Cita confirmada</h2>\n<p>Hola <strong>{{ $json.dueno }}</strong>,</p>\n<p>Su cita ha sido agendada exitosamente.</p>\n<table style='border-collapse:collapse;width:100%'>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Identificacion</strong></td><td style='padding:8px'>{{ $json.identificacion }}</td></tr>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Mascota</strong></td><td style='padding:8px'>{{ $('Preparar Cita').item.json.mascota }}</td></tr>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Tipo</strong></td><td style='padding:8px'>{{ $('Preparar Cita').item.json.tipo_caso }}</td></tr>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Fecha</strong></td><td style='padding:8px'>{{ $('Preparar Cita').item.json.fecha }}</td></tr>\n  <tr><td style='padding:8px;background:#d8f3dc'><strong>Hora</strong></td><td style='padding:8px'>{{ $('Preparar Cita').item.json.hora_formateada }}</td></tr>\n</table>\n<p style='margin-top:16px;color:#6b7280;font-size:0.85em'>VetCitas - Sistema de Agendamiento</p>"
       },
       "id": "send-email",
       "name": "Enviar Confirmacion (Email)",
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2,
-      "position": [
-        1800,
-        300
-      ],
-      "notes": "Usa la configuracion SMTP existente."
-    },
-    {
-      "parameters": {
-        "url": "https://api.callmebot.com/whatsapp.php",
-        "sendQuery": true,
-        "queryParameters": {
-          "parameters": [
-            {
-              "name": "phone",
-              "value": "={{ $('Aplicar Reglas DMN').item.json.telefono }}"
-            },
-            {
-              "name": "text",
-              "value": "=Cita confirmada para {{ $('Aplicar Reglas DMN').item.json.mascota }} el {{ $('Aplicar Reglas DMN').item.json.fecha }} a las {{ $('Aplicar Reglas DMN').item.json.hora_formateada }}. Prioridad: {{ $('Aplicar Reglas DMN').item.json.prioridad }}. - VetCitas"
-            },
-            {
-              "name": "apikey",
-              "value": "TU_API_KEY_CALLMEBOT"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "whatsapp-notify",
-      "name": "Notificar por WhatsApp",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [
-        1800,
-        480
-      ],
-      "notes": "Mantiene la notificacion por CallMeBot. Cambie TU_API_KEY_CALLMEBOT por su key si aplica."
+      "position": [1060, 300],
+      "notes": "Opcional: si no se envia email desde cita, puede omitirse o completarse consultando clientes."
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={ \"success\": true, \"message\": \"Cita agendada correctamente\", \"cita\": { \"dueno\": \"{{ $('Aplicar Reglas DMN').item.json.dueno }}\", \"mascota\": \"{{ $('Aplicar Reglas DMN').item.json.mascota }}\", \"fecha\": \"{{ $('Aplicar Reglas DMN').item.json.fecha }}\", \"hora\": \"{{ $('Aplicar Reglas DMN').item.json.hora_formateada }}\", \"prioridad\": \"{{ $('Aplicar Reglas DMN').item.json.prioridad }}\" } }"
+        "responseBody": "={ \"success\": true, \"message\": \"Cita agendada correctamente\", \"cita\": { \"identificacion\": \"{{ $('Preparar Cita').item.json.identificacion }}\", \"mascota\": \"{{ $('Preparar Cita').item.json.mascota }}\", \"fecha\": \"{{ $('Preparar Cita').item.json.fecha }}\", \"hora\": \"{{ $('Preparar Cita').item.json.hora_formateada }}\", \"prioridad\": \"{{ $('Preparar Cita').item.json.prioridad }}\" } }"
       },
-      "id": "response-ok",
-      "name": "Responder OK",
+      "id": "response-cita",
+      "name": "Responder Cita OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [
-        2060,
-        300
-      ]
-    },
-    {
-      "parameters": {
-        "respondWith": "json",
-        "responseCode": 409,
-        "responseBody": "={ \"success\": false, \"message\": \"{{ $('Aplicar Reglas DMN').item.json.accion_dmn }}\", \"disponible\": false }"
-      },
-      "id": "response-no",
-      "name": "Responder No Disponible",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1,
-      "position": [
-        1020,
-        660
-      ]
+      "position": [1340, 360]
     },
     {
       "parameters": {
@@ -214,33 +134,26 @@
       "name": "Listar Citas (Webhook)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [
-        240,
-        900
-      ],
+      "position": [220, 680],
       "webhookId": "vetcitas-listar-citas-001",
-      "notes": "Endpoint GET /webhook/citas para que todos los equipos carguen la misma agenda desde MySQL."
+      "notes": "Endpoint GET /webhook/citas para cargar la agenda desde MySQL."
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT\n  c.id_cita AS id,\n  CONCAT(cl.nombres, ' ', cl.apellidos) AS dueno,\n  cl.telefono,\n  cl.email,\n  m.nombre AS mascota,\n  m.especie,\n  c.tipo_caso,\n  c.prioridad,\n  DATE_FORMAT(c.fecha_cita, '%Y-%m-%d') AS fecha,\n  TIME_FORMAT(c.hora_cita, '%H:%i') AS hora,\n  c.estado,\n  c.observaciones AS obs\nFROM citas c\nJOIN clientes cl ON cl.id_cliente = c.id_cliente\nJOIN mascotas m ON m.id_mascota = c.id_mascota\nORDER BY c.fecha_cita DESC, c.hora_cita DESC\nLIMIT 200;",
+        "query": "SELECT\n  c.id_cita AS id,\n  cl.identificacion,\n  CONCAT(cl.nombres, ' ', cl.apellidos) AS dueno,\n  cl.telefono,\n  cl.email,\n  m.nombre AS mascota,\n  m.especie,\n  c.tipo_caso,\n  c.prioridad,\n  DATE_FORMAT(c.fecha_cita, '%Y-%m-%d') AS fecha,\n  TIME_FORMAT(c.hora_cita, '%H:%i') AS hora,\n  c.estado,\n  c.observaciones AS obs\nFROM citas c\nJOIN clientes cl ON cl.id_cliente = c.id_cliente\nJOIN mascotas m ON m.id_mascota = c.id_mascota\nORDER BY c.fecha_cita DESC, c.hora_cita DESC\nLIMIT 200;",
         "options": {}
       },
       "id": "mysql-consultar-citas",
       "name": "Consultar Citas en MySQL",
       "type": "n8n-nodes-base.mySql",
       "typeVersion": 2,
-      "position": [
-        520,
-        900
-      ],
+      "position": [500, 680],
       "credentials": {
         "mySql": {
           "name": "VetCitas MySQL"
         }
-      },
-      "notes": "Lee la agenda central desde MySQL."
+      }
     },
     {
       "parameters": {
@@ -250,10 +163,7 @@
       "name": "Preparar Respuesta Citas",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        800,
-        900
-      ]
+      "position": [780, 680]
     },
     {
       "parameters": {
@@ -264,141 +174,46 @@
       "name": "Responder Citas",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [
-        1080,
-        900
-      ]
+      "position": [1060, 680]
     }
   ],
   "connections": {
+    "Recibir Cliente (Webhook)": {
+      "main": [[{ "node": "Preparar Cliente", "type": "main", "index": 0 }]]
+    },
+    "Preparar Cliente": {
+      "main": [[{ "node": "Guardar Cliente y Mascota", "type": "main", "index": 0 }]]
+    },
+    "Guardar Cliente y Mascota": {
+      "main": [[{ "node": "Responder Cliente OK", "type": "main", "index": 0 }]]
+    },
     "Recibir Nueva Cita (Webhook)": {
-      "main": [
-        [
-          {
-            "node": "Aplicar Reglas DMN",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "Preparar Cita", "type": "main", "index": 0 }]]
     },
-    "Aplicar Reglas DMN": {
-      "main": [
-        [
-          {
-            "node": "Horario disponible?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "Preparar Cita": {
+      "main": [[{ "node": "Agendar Cita en MySQL", "type": "main", "index": 0 }]]
     },
-    "Horario disponible?": {
-      "main": [
-        [
-          {
-            "node": "Crear Cliente si no Existe",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Responder No Disponible",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Crear Cliente si no Existe": {
-      "main": [
-        [
-          {
-            "node": "Crear Mascota si no Existe",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Crear Mascota si no Existe": {
-      "main": [
-        [
-          {
-            "node": "Guardar Cita en MySQL",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Guardar Cita en MySQL": {
-      "main": [
-        [
-          {
-            "node": "Enviar Confirmacion (Email)",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Notificar por WhatsApp",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Enviar Confirmacion (Email)": {
-      "main": [
-        [
-          {
-            "node": "Responder OK",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "Agendar Cita en MySQL": {
+      "main": [[
+        { "node": "Enviar Confirmacion (Email)", "type": "main", "index": 0 },
+        { "node": "Responder Cita OK", "type": "main", "index": 0 }
+      ]]
     },
     "Listar Citas (Webhook)": {
-      "main": [
-        [
-          {
-            "node": "Consultar Citas en MySQL",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "Consultar Citas en MySQL", "type": "main", "index": 0 }]]
     },
     "Consultar Citas en MySQL": {
-      "main": [
-        [
-          {
-            "node": "Preparar Respuesta Citas",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "Preparar Respuesta Citas", "type": "main", "index": 0 }]]
     },
     "Preparar Respuesta Citas": {
-      "main": [
-        [
-          {
-            "node": "Responder Citas",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "Responder Citas", "type": "main", "index": 0 }]]
     }
   },
   "settings": {
     "executionOrder": "v1"
   },
   "meta": {
-    "description": "Flujo n8n para VetCitas. Recibe cita via webhook, aplica reglas DMN, guarda en MySQL y notifica al cliente por email/WhatsApp.",
+    "description": "Flujo n8n para VetCitas. Registra clientes y mascotas, agenda citas por identificacion y lista la agenda desde MySQL.",
     "project": "Modelos de Conocimiento - Agendamiento de Citas"
   }
 }

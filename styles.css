@@ -477,6 +477,10 @@ tr:hover td {
   padding: 36px 40px;
 }
 
+.wide-form {
+  max-width: 920px;
+}
+
 .form-title {
   font-size: 1.6rem;
   margin-bottom: 8px;

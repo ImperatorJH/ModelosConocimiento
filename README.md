@@ -1,16 +1,28 @@
 # VetCitas - Modelos de Conocimiento
 
-Aplicacion web estatica para gestionar citas veterinarias con reglas DMN simples:
+Aplicacion web estatica para gestionar clientes, mascotas y citas veterinarias con n8n y MySQL.
 
-- registra citas y las guarda en `localStorage`;
-- valida que no se repita la misma fecha y hora;
-- asigna prioridad por tipo de caso;
-- lista, filtra, confirma, marca pendiente y elimina citas;
-- intenta enviar cada cita nueva al webhook de n8n.
+## Flujo actual
 
-## Ejecutar local
+- Registra clientes y mascotas desde la pantalla `Clientes`.
+- Agenda citas pidiendo la identificacion del propietario.
+- Lista citas desde MySQL mediante n8n.
+- Usa reglas DMN simples para prioridad y disponibilidad.
+- Envia confirmacion por email desde el flujo n8n.
 
-Abra `index.html` directamente en el navegador para probar la agenda sin backend.
+## Base de datos MySQL
+
+Antes de importar el workflow, ejecute el script completo:
+
+```sql
+SOURCE migrations/20260617_identificacion_clientes.sql;
+```
+
+Este script borra y recrea la base `vetcitas`. Incluye `clientes.identificacion`, datos de prueba y los procedimientos:
+
+- `sp_registrar_cliente_mascota`
+- `sp_agendar_cita_identificacion`
+- `sp_actualizar_estado_cita`
 
 ## Ejecutar con Docker y Nginx
 
@@ -25,38 +37,12 @@ Luego abra:
 http://localhost:82
 ```
 
-## Webhook de n8n
-
-El frontend envia un `POST` a:
+## Endpoints n8n usados
 
 ```text
-/api/webhook/nueva-cita
+POST /api/webhook/cliente
+POST /api/webhook/nueva-cita
+GET  /api/webhook/citas
 ```
 
-Nginx lo redirige segun `nginx.conf` hacia:
-
-```text
-https://n8nvetcitas.nexuscampusinternational.com/webhook/nueva-cita
-```
-
-Payload principal:
-
-```json
-{
-  "id": 6,
-  "dueno": "Maria Garcia",
-  "telefono": "310 000 0000",
-  "email": "maria@example.com",
-  "mascota": "Toby",
-  "especie": "Perro",
-  "tipo": "Consulta general",
-  "prioridad": "Media",
-  "fecha": "2026-06-10",
-  "hora": "09:00",
-  "hora_formateada": "09:00 am",
-  "estado": "Confirmada",
-  "registrado": "si",
-  "obs": "Revision",
-  "creado_en": "2026-06-03T12:00:00.000Z"
-}
-```
+Nginx redirige `/api/webhook/*` hacia el servidor n8n configurado en `nginx.conf`.

@@ -1,13 +1,14 @@
 const STORAGE_KEY = 'vetcitas:citas';
 const WEBHOOK_URL = '/api/webhook/nueva-cita';
 const CITAS_URL = '/api/webhook/citas';
+const CLIENTE_URL = '/api/webhook/cliente';
 
 const citasIniciales = [
-  { id: 1, dueno: 'Laura Martinez', telefono: '300 111 2233', email: 'laura@example.com', mascota: 'Rex', especie: 'Perro', tipo: 'Emergencia', prioridad: 'Alta', fecha: '2026-06-03', hora: '08:00', estado: 'Confirmada', obs: 'Vomitos frecuentes' },
-  { id: 2, dueno: 'Carlos Gomez', telefono: '300 222 3344', email: 'carlos@example.com', mascota: 'Michi', especie: 'Gato', tipo: 'Vacunacion', prioridad: 'Baja', fecha: '2026-06-03', hora: '09:00', estado: 'Pendiente', obs: '' },
-  { id: 3, dueno: 'Ana Perez', telefono: '300 333 4455', email: 'ana@example.com', mascota: 'Coco', especie: 'Ave', tipo: 'Consulta general', prioridad: 'Media', fecha: '2026-06-04', hora: '11:00', estado: 'Confirmada', obs: 'Revision anual' },
-  { id: 4, dueno: 'Jhon Contreras', telefono: '300 444 5566', email: 'jhon@example.com', mascota: 'Bolt', especie: 'Perro', tipo: 'Consulta general', prioridad: 'Media', fecha: '2026-06-05', hora: '14:00', estado: 'Pendiente', obs: '' },
-  { id: 5, dueno: 'Julian Barrera', telefono: '300 555 6677', email: 'julian@example.com', mascota: 'Nina', especie: 'Conejo', tipo: 'Vacunacion', prioridad: 'Baja', fecha: '2026-06-06', hora: '16:00', estado: 'Confirmada', obs: '' },
+  { id: 1, identificacion: '1001', dueno: 'Laura Martinez', telefono: '300 111 2233', email: 'laura@example.com', mascota: 'Rex', especie: 'Perro', tipo: 'Emergencia', prioridad: 'Alta', fecha: '2026-06-03', hora: '08:00', estado: 'Confirmada', obs: 'Vomitos frecuentes' },
+  { id: 2, identificacion: '1002', dueno: 'Carlos Gomez', telefono: '300 222 3344', email: 'carlos@example.com', mascota: 'Michi', especie: 'Gato', tipo: 'Vacunacion', prioridad: 'Baja', fecha: '2026-06-03', hora: '09:00', estado: 'Pendiente', obs: '' },
+  { id: 3, identificacion: '1003', dueno: 'Ana Perez', telefono: '300 333 4455', email: 'ana@example.com', mascota: 'Coco', especie: 'Ave', tipo: 'Consulta general', prioridad: 'Media', fecha: '2026-06-04', hora: '11:00', estado: 'Confirmada', obs: 'Revision anual' },
+  { id: 4, identificacion: '1004', dueno: 'Jhon Contreras', telefono: '300 444 5566', email: 'jhon@example.com', mascota: 'Bolt', especie: 'Perro', tipo: 'Consulta general', prioridad: 'Media', fecha: '2026-06-05', hora: '14:00', estado: 'Pendiente', obs: '' },
+  { id: 5, identificacion: '1005', dueno: 'Julian Barrera', telefono: '300 555 6677', email: 'julian@example.com', mascota: 'Nina', especie: 'Conejo', tipo: 'Vacunacion', prioridad: 'Baja', fecha: '2026-06-06', hora: '16:00', estado: 'Confirmada', obs: '' },
 ];
 
 let citas = cargarCitas();
@@ -25,6 +26,7 @@ function cargarCitas() {
 function normalizarCitaRemota(cita) {
   return {
     id: Number(cita.id || cita.id_cita || 0),
+    identificacion: cita.identificacion || '',
     dueno: cita.dueno || '',
     telefono: cita.telefono || '',
     email: cita.email || '',
@@ -200,39 +202,89 @@ function fieldValue(id) {
 
 function evalDMN() {
   const tipo = fieldValue('f-tipo');
-  const email = fieldValue('f-email');
+  const identificacion = fieldValue('f-identificacion');
   const fecha = fieldValue('f-fecha');
   const hora = fieldValue('f-hora');
   const box = document.getElementById('dmn-result');
 
-  if (!tipo || !email || !fecha || !hora) {
+  if (!tipo || !identificacion || !fecha || !hora) {
     box.classList.remove('show');
     return;
   }
 
   const disponible = !horarioOcupado(fecha, hora);
   const prioridad = prioridadPorTipo(tipo);
-  const clienteLocal = citas.some(cita => cita.email && cita.email.toLowerCase() === email.toLowerCase());
+  const clienteLocal = citas.some(cita => cita.identificacion === identificacion);
   let accion = '';
 
   if (disponible && clienteLocal) {
-    accion = 'Accion DMN: email reconocido, confirmar cita.';
+    accion = 'Accion DMN: cliente reconocido, confirmar cita.';
   } else if (disponible && !clienteLocal) {
-    accion = 'Accion DMN: email nuevo, crear cliente y confirmar cita.';
+    accion = 'Accion DMN: validar identificacion en MySQL antes de confirmar.';
   } else if (!disponible && clienteLocal) {
     accion = 'Accion DMN: horario ocupado, mostrar horarios alternativos.';
   } else {
-    accion = 'Accion DMN: email nuevo y horario ocupado, crear cliente y reprogramar.';
+    accion = 'Accion DMN: registrar cliente y elegir otro horario.';
   }
 
-  box.innerHTML = `<strong>Prioridad asignada:</strong> ${prioridad}<br><strong>Verificacion:</strong> ${clienteLocal ? 'Email encontrado en esta agenda' : 'Email nuevo'}<br><strong>Disponibilidad:</strong> ${disponible ? 'Disponible' : 'Ocupado'}<br>${accion}`;
+  box.innerHTML = `<strong>Prioridad asignada:</strong> ${prioridad}<br><strong>Identificacion:</strong> ${clienteLocal ? 'Encontrada en esta agenda' : 'Se validara en MySQL'}<br><strong>Disponibilidad:</strong> ${disponible ? 'Disponible' : 'Ocupado'}<br>${accion}`;
   box.classList.add('show');
 }
 
+async function crearCliente() {
+  const identificacion = fieldValue('c-identificacion');
+  const nombres = fieldValue('c-nombres');
+  const apellidos = fieldValue('c-apellidos');
+  const telefono = fieldValue('c-tel');
+  const email = fieldValue('c-email');
+  const direccion = fieldValue('c-direccion');
+  const mascota = fieldValue('c-mascota');
+  const especie = fieldValue('c-especie');
+  const raza = fieldValue('c-raza');
+  const observaciones = fieldValue('c-obs');
+
+  if (!identificacion || !nombres || !apellidos || !telefono || !email || !mascota || !especie) {
+    showToast('Complete identificacion, nombres, apellidos, telefono, email, mascota y especie.', true);
+    return;
+  }
+
+  if (!email.includes('@')) {
+    showToast('Ingrese un email valido para notificaciones.', true);
+    return;
+  }
+
+  try {
+    const response = await fetch(CLIENTE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        identificacion,
+        nombres,
+        apellidos,
+        telefono,
+        email,
+        direccion,
+        mascota,
+        especie,
+        raza,
+        observaciones,
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.success === false) {
+      throw new Error(data.message || 'No se pudo crear el cliente');
+    }
+
+    resetClienteFormulario();
+    showToast(`Cliente ${nombres} ${apellidos} registrado.`);
+  } catch (error) {
+    showToast(error.message || 'No se pudo registrar el cliente en n8n.', true);
+  }
+}
+
 async function agendarCita() {
-  const dueno = fieldValue('f-dueno');
-  const telefono = fieldValue('f-tel');
-  const email = fieldValue('f-email');
+  const identificacion = fieldValue('f-identificacion');
   const mascota = fieldValue('f-mascota');
   const especie = fieldValue('f-especie');
   const tipo = fieldValue('f-tipo');
@@ -240,13 +292,8 @@ async function agendarCita() {
   const hora = fieldValue('f-hora');
   const obs = fieldValue('f-obs');
 
-  if (!dueno || !telefono || !email || !mascota || !especie || !tipo || !fecha || !hora) {
+  if (!identificacion || !mascota || !especie || !tipo || !fecha || !hora) {
     showToast('Complete los campos obligatorios.', true);
-    return;
-  }
-
-  if (!email.includes('@')) {
-    showToast('Ingrese un email valido para verificar el cliente.', true);
     return;
   }
 
@@ -257,9 +304,10 @@ async function agendarCita() {
 
   const cita = {
     id: nextId++,
-    dueno,
-    telefono,
-    email,
+    identificacion,
+    dueno: `ID ${identificacion}`,
+    telefono: '',
+    email: '',
     mascota,
     especie,
     tipo,
@@ -284,7 +332,7 @@ async function agendarCita() {
         ...cita,
         tipo_caso: cita.tipo,
         observaciones: cita.obs,
-        verificacion_cliente: 'email',
+        verificacion_cliente: 'identificacion',
         hora_formateada: formatearHora(cita.hora),
         creado_en: new Date().toISOString(),
       }),
@@ -299,13 +347,20 @@ async function agendarCita() {
 }
 
 function resetFormulario() {
-  ['f-dueno', 'f-tel', 'f-email', 'f-mascota', 'f-obs', 'f-fecha'].forEach(id => {
+  ['f-identificacion', 'f-mascota', 'f-obs', 'f-fecha'].forEach(id => {
     document.getElementById(id).value = '';
   });
   ['f-especie', 'f-tipo', 'f-hora'].forEach(id => {
     document.getElementById(id).selectedIndex = 0;
   });
   document.getElementById('dmn-result').classList.remove('show');
+}
+
+function resetClienteFormulario() {
+  ['c-identificacion', 'c-nombres', 'c-apellidos', 'c-tel', 'c-email', 'c-direccion', 'c-mascota', 'c-raza', 'c-obs'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('c-especie').selectedIndex = 0;
 }
 
 function showToast(msg, err = false) {
@@ -318,7 +373,7 @@ function showToast(msg, err = false) {
 
 document.addEventListener('DOMContentLoaded', () => {
   const fecha = document.getElementById('f-fecha');
-  document.getElementById('f-email').addEventListener('input', evalDMN);
+  document.getElementById('f-identificacion').addEventListener('input', evalDMN);
   fecha.min = fechaLocalISO();
   fecha.addEventListener('change', evalDMN);
   updateStats();
