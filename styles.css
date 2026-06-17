@@ -508,6 +508,47 @@ tr:hover td {
   grid-column: 1 / -1;
 }
 
+.subform-head {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.subform-head p {
+  color: var(--gris);
+  font-size: 0.84rem;
+  margin-top: 3px;
+}
+
+.pets-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.pet-row {
+  align-items: end;
+  background: #f8fbf9;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1.1fr 1fr 1fr 1.2fr auto;
+  padding: 14px;
+}
+
+.pet-remove {
+  height: 40px;
+  margin: 0;
+}
+
+.form-action {
+  height: 42px;
+  margin: 0;
+  width: 100%;
+}
+
 label {
   color: #374151;
   font-size: 0.84rem;
@@ -719,6 +760,15 @@ textarea {
   .cards-grid,
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .pet-row {
+    grid-template-columns: 1fr;
+  }
+
+  .subform-head {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .hero {

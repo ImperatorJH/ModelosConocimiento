@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VetCitas - Agendamiento de Citas</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=20260617-clientes">
+  <link rel="stylesheet" href="./styles.css?v=20260617-mascotas">
 </head>
 <body>
 
@@ -122,7 +122,7 @@
     </div>
     <div class="form-card wide-form">
       <div class="form-title">Crear Cliente</div>
-      <div class="form-subtitle">Registre al propietario y una mascota base. La identificacion sera el dato principal para agendar citas.</div>
+      <div class="form-subtitle">Registre al propietario y todas las mascotas que tenga asociadas. La identificacion sera el dato principal para agendar citas.</div>
 
       <div class="form-grid">
         <div class="form-group">
@@ -149,33 +149,19 @@
           <label for="c-direccion">Direccion</label>
           <input type="text" id="c-direccion" placeholder="Barrio, ciudad o referencia">
         </div>
-        <div class="form-group">
-          <label for="c-mascota">Mascota *</label>
-          <input type="text" id="c-mascota" placeholder="Ej: Toby">
-        </div>
-        <div class="form-group">
-          <label for="c-especie">Especie *</label>
-          <select id="c-especie">
-            <option value="">Seleccionar...</option>
-            <option>Perro</option>
-            <option>Gato</option>
-            <option>Ave</option>
-            <option>Conejo</option>
-            <option>Reptil</option>
-            <option>Otro</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="c-raza">Raza</label>
-          <input type="text" id="c-raza" placeholder="Opcional">
-        </div>
         <div class="form-group full">
-          <label for="c-obs">Observaciones de la mascota</label>
-          <textarea id="c-obs" placeholder="Alergias, edad aproximada, notas importantes..."></textarea>
+          <div class="subform-head">
+            <div>
+              <label>Mascotas *</label>
+              <p>Agregue una o varias mascotas asociadas al propietario.</p>
+            </div>
+            <button class="btn-action" type="button" onclick="agregarMascotaCliente()">Agregar mascota</button>
+          </div>
+          <div class="pets-list" id="c-mascotas-list"></div>
         </div>
       </div>
 
-      <button class="submit-btn" onclick="crearCliente()">Guardar Cliente y Mascota</button>
+      <button class="submit-btn" onclick="crearCliente()">Guardar Cliente y Mascotas</button>
     </div>
   </div>
 </div>
@@ -198,20 +184,18 @@
           <input type="text" id="f-identificacion" placeholder="Cedula o documento">
         </div>
         <div class="form-group">
-          <label for="f-mascota">Nombre de la mascota *</label>
-          <input type="text" id="f-mascota" placeholder="Ej: Toby">
+          <label>&nbsp;</label>
+          <button class="btn-action form-action" type="button" onclick="cargarMascotasCliente(true)">Cargar mascotas</button>
         </div>
         <div class="form-group">
-          <label for="f-especie">Especie *</label>
-          <select id="f-especie">
-            <option value="">Seleccionar...</option>
-            <option>Perro</option>
-            <option>Gato</option>
-            <option>Ave</option>
-            <option>Conejo</option>
-            <option>Reptil</option>
-            <option>Otro</option>
+          <label for="f-mascota">Mascota *</label>
+          <select id="f-mascota" onchange="seleccionarMascotaCita(); evalDMN();" disabled>
+            <option value="">Ingrese una identificacion y cargue mascotas...</option>
           </select>
+        </div>
+        <div class="form-group">
+          <label for="f-especie">Especie</label>
+          <input type="text" id="f-especie" placeholder="Se carga automaticamente" readonly>
         </div>
         <div class="form-group">
           <label for="f-tipo">Tipo de caso *</label>
@@ -428,6 +412,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="./script.js?v=20260617-clientes"></script>
+<script src="./script.js?v=20260617-mascotas"></script>
 </body>
 </html>

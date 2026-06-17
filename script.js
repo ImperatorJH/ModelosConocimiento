@@ -2,6 +2,7 @@ const STORAGE_KEY = 'vetcitas:citas';
 const WEBHOOK_URL = '/api/webhook/nueva-cita';
 const CITAS_URL = '/api/webhook/citas';
 const CLIENTE_URL = '/api/webhook/cliente';
+const MASCOTAS_URL = '/api/webhook/mascotas';
 
 const citasIniciales = [
   { id: 1, identificacion: '1001', dueno: 'Laura Martinez', telefono: '300 111 2233', email: 'laura@example.com', mascota: 'Rex', especie: 'Perro', tipo: 'Emergencia', prioridad: 'Alta', fecha: '2026-06-03', hora: '08:00', estado: 'Confirmada', obs: 'Vomitos frecuentes' },
@@ -200,6 +201,61 @@ function fieldValue(id) {
   return typeof field.value === 'string' ? field.value.trim() : '';
 }
 
+function especieOptions(selected = '') {
+  return ['Perro', 'Gato', 'Ave', 'Conejo', 'Reptil', 'Otro']
+    .map(especie => `<option value="${especie}" ${especie === selected ? 'selected' : ''}>${especie}</option>`)
+    .join('');
+}
+
+function agregarMascotaCliente(data = {}) {
+  const list = document.getElementById('c-mascotas-list');
+  const row = document.createElement('div');
+  row.className = 'pet-row';
+  row.innerHTML = `
+    <div class="form-group">
+      <label>Nombre *</label>
+      <input type="text" class="pet-nombre" placeholder="Ej: Toby" value="${escapeHtml(data.nombre || '')}">
+    </div>
+    <div class="form-group">
+      <label>Especie *</label>
+      <select class="pet-especie">
+        <option value="">Seleccionar...</option>
+        ${especieOptions(data.especie || '')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Raza</label>
+      <input type="text" class="pet-raza" placeholder="Opcional" value="${escapeHtml(data.raza || '')}">
+    </div>
+    <div class="form-group">
+      <label>Observaciones</label>
+      <input type="text" class="pet-observaciones" placeholder="Notas" value="${escapeHtml(data.observaciones || '')}">
+    </div>
+    <button class="btn-action danger pet-remove" type="button" onclick="eliminarMascotaCliente(this)">Eliminar</button>
+  `;
+  list.appendChild(row);
+}
+
+function eliminarMascotaCliente(button) {
+  const rows = document.querySelectorAll('#c-mascotas-list .pet-row');
+  if (rows.length <= 1) {
+    showToast('Debe quedar al menos una mascota.', true);
+    return;
+  }
+  button.closest('.pet-row').remove();
+}
+
+function obtenerMascotasFormulario() {
+  return [...document.querySelectorAll('#c-mascotas-list .pet-row')]
+    .map(row => ({
+      nombre: row.querySelector('.pet-nombre').value.trim(),
+      especie: row.querySelector('.pet-especie').value,
+      raza: row.querySelector('.pet-raza').value.trim(),
+      observaciones: row.querySelector('.pet-observaciones').value.trim(),
+    }))
+    .filter(mascota => mascota.nombre || mascota.especie || mascota.raza || mascota.observaciones);
+}
+
 function evalDMN() {
   const tipo = fieldValue('f-tipo');
   const identificacion = fieldValue('f-identificacion');
@@ -207,7 +263,9 @@ function evalDMN() {
   const hora = fieldValue('f-hora');
   const box = document.getElementById('dmn-result');
 
-  if (!tipo || !identificacion || !fecha || !hora) {
+  const mascota = fieldValue('f-mascota');
+
+  if (!tipo || !identificacion || !mascota || !fecha || !hora) {
     box.classList.remove('show');
     return;
   }
@@ -238,18 +296,20 @@ async function crearCliente() {
   const telefono = fieldValue('c-tel');
   const email = fieldValue('c-email');
   const direccion = fieldValue('c-direccion');
-  const mascota = fieldValue('c-mascota');
-  const especie = fieldValue('c-especie');
-  const raza = fieldValue('c-raza');
-  const observaciones = fieldValue('c-obs');
+  const mascotas = obtenerMascotasFormulario();
 
-  if (!identificacion || !nombres || !apellidos || !telefono || !email || !mascota || !especie) {
-    showToast('Complete identificacion, nombres, apellidos, telefono, email, mascota y especie.', true);
+  if (!identificacion || !nombres || !apellidos || !telefono || !email) {
+    showToast('Complete identificacion, nombres, apellidos, telefono y email.', true);
     return;
   }
 
   if (!email.includes('@')) {
     showToast('Ingrese un email valido para notificaciones.', true);
+    return;
+  }
+
+  if (!mascotas.length || mascotas.some(mascota => !mascota.nombre || !mascota.especie)) {
+    showToast('Agregue al menos una mascota con nombre y especie.', true);
     return;
   }
 
@@ -264,10 +324,7 @@ async function crearCliente() {
         telefono,
         email,
         direccion,
-        mascota,
-        especie,
-        raza,
-        observaciones,
+        mascotas,
       }),
     });
 
@@ -277,10 +334,57 @@ async function crearCliente() {
     }
 
     resetClienteFormulario();
+    if (fieldValue('f-identificacion') === identificacion) {
+      await cargarMascotasCliente(false);
+    }
     showToast(`Cliente ${nombres} ${apellidos} registrado.`);
   } catch (error) {
     showToast(error.message || 'No se pudo registrar el cliente en n8n.', true);
   }
+}
+
+async function cargarMascotasCliente(mostrarError = false) {
+  const identificacion = fieldValue('f-identificacion');
+  const select = document.getElementById('f-mascota');
+  const especie = document.getElementById('f-especie');
+
+  select.innerHTML = '<option value="">Cargando mascotas...</option>';
+  select.disabled = true;
+  especie.value = '';
+
+  if (!identificacion) {
+    select.innerHTML = '<option value="">Ingrese la identificacion primero...</option>';
+    if (mostrarError) showToast('Ingrese la identificacion del dueno.', true);
+    return;
+  }
+
+  try {
+    const response = await fetch(`${MASCOTAS_URL}?identificacion=${encodeURIComponent(identificacion)}`, { cache: 'no-store' });
+    if (!response.ok) throw new Error('No se pudieron consultar las mascotas');
+
+    const data = await response.json();
+    const mascotas = Array.isArray(data) ? data : data.mascotas;
+    if (!Array.isArray(mascotas) || !mascotas.length) {
+      select.innerHTML = '<option value="">No hay mascotas registradas...</option>';
+      if (mostrarError) showToast('Ese cliente no tiene mascotas registradas.', true);
+      return;
+    }
+
+    select.innerHTML = '<option value="">Seleccionar mascota...</option>' + mascotas.map(mascota => (
+      `<option value="${escapeHtml(mascota.nombre)}" data-especie="${escapeHtml(mascota.especie)}">${escapeHtml(mascota.nombre)} (${escapeHtml(mascota.especie)})</option>`
+    )).join('');
+    select.disabled = false;
+  } catch (error) {
+    console.warn('No se pudieron cargar mascotas.', error);
+    select.innerHTML = '<option value="">Error cargando mascotas...</option>';
+    if (mostrarError) showToast('No pude cargar mascotas desde n8n/MySQL.', true);
+  }
+}
+
+function seleccionarMascotaCita() {
+  const select = document.getElementById('f-mascota');
+  const option = select.options[select.selectedIndex];
+  document.getElementById('f-especie').value = option?.dataset?.especie || '';
 }
 
 async function agendarCita() {
@@ -347,20 +451,24 @@ async function agendarCita() {
 }
 
 function resetFormulario() {
-  ['f-identificacion', 'f-mascota', 'f-obs', 'f-fecha'].forEach(id => {
+  ['f-identificacion', 'f-especie', 'f-obs', 'f-fecha'].forEach(id => {
     document.getElementById(id).value = '';
   });
-  ['f-especie', 'f-tipo', 'f-hora'].forEach(id => {
+  ['f-tipo', 'f-hora'].forEach(id => {
     document.getElementById(id).selectedIndex = 0;
   });
+  const mascota = document.getElementById('f-mascota');
+  mascota.innerHTML = '<option value="">Ingrese una identificacion y cargue mascotas...</option>';
+  mascota.disabled = true;
   document.getElementById('dmn-result').classList.remove('show');
 }
 
 function resetClienteFormulario() {
-  ['c-identificacion', 'c-nombres', 'c-apellidos', 'c-tel', 'c-email', 'c-direccion', 'c-mascota', 'c-raza', 'c-obs'].forEach(id => {
+  ['c-identificacion', 'c-nombres', 'c-apellidos', 'c-tel', 'c-email', 'c-direccion'].forEach(id => {
     document.getElementById(id).value = '';
   });
-  document.getElementById('c-especie').selectedIndex = 0;
+  document.getElementById('c-mascotas-list').innerHTML = '';
+  agregarMascotaCliente();
 }
 
 function showToast(msg, err = false) {
@@ -373,9 +481,11 @@ function showToast(msg, err = false) {
 
 document.addEventListener('DOMContentLoaded', () => {
   const fecha = document.getElementById('f-fecha');
+  document.getElementById('f-identificacion').addEventListener('change', () => cargarMascotasCliente(false));
   document.getElementById('f-identificacion').addEventListener('input', evalDMN);
   fecha.min = fechaLocalISO();
   fecha.addEventListener('change', evalDMN);
+  agregarMascotaCliente();
   updateStats();
   cargarCitasRemotas();
 });

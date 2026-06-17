@@ -14,11 +14,11 @@
       "typeVersion": 2,
       "position": [220, 80],
       "webhookId": "vetcitas-cliente-001",
-      "notes": "Registra o actualiza cliente y crea mascota base. Endpoint: POST /webhook/cliente."
+      "notes": "Registra o actualiza cliente y crea una o varias mascotas. Endpoint: POST /webhook/cliente."
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.first().json.body || $input.first().json;\nfunction clean(value) { return String(value || '').trim(); }\nfunction sql(value) { return clean(value).replace(/'/g, \"''\"); }\nconst cliente = {\n  identificacion: clean(body.identificacion),\n  nombres: clean(body.nombres),\n  apellidos: clean(body.apellidos),\n  telefono: clean(body.telefono),\n  email: clean(body.email).toLowerCase(),\n  direccion: clean(body.direccion),\n  mascota: clean(body.mascota),\n  especie: clean(body.especie),\n  raza: clean(body.raza),\n  observaciones: clean(body.observaciones)\n};\nconst faltantes = ['identificacion', 'nombres', 'apellidos', 'telefono', 'email', 'mascota', 'especie'].filter((campo) => !cliente[campo]);\nif (faltantes.length) {\n  throw new Error(`Faltan campos obligatorios: ${faltantes.join(', ')}`);\n}\nreturn [{ json: {\n  ...cliente,\n  sql_identificacion: sql(cliente.identificacion),\n  sql_nombres: sql(cliente.nombres),\n  sql_apellidos: sql(cliente.apellidos),\n  sql_telefono: sql(cliente.telefono),\n  sql_email: sql(cliente.email),\n  sql_direccion: sql(cliente.direccion),\n  sql_mascota: sql(cliente.mascota),\n  sql_especie: sql(cliente.especie),\n  sql_raza: sql(cliente.raza),\n  sql_observaciones: sql(cliente.observaciones)\n} }];"
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nfunction clean(value) { return String(value || '').trim(); }\nfunction sql(value) { return clean(value).replace(/'/g, \"''\"); }\nconst mascotas = Array.isArray(body.mascotas) ? body.mascotas.map((m) => ({\n  nombre: clean(m.nombre),\n  especie: clean(m.especie),\n  raza: clean(m.raza),\n  observaciones: clean(m.observaciones)\n})).filter((m) => m.nombre && m.especie) : [];\nconst cliente = {\n  identificacion: clean(body.identificacion),\n  nombres: clean(body.nombres),\n  apellidos: clean(body.apellidos),\n  telefono: clean(body.telefono),\n  email: clean(body.email).toLowerCase(),\n  direccion: clean(body.direccion),\n  mascotas\n};\nconst faltantes = ['identificacion', 'nombres', 'apellidos', 'telefono', 'email'].filter((campo) => !cliente[campo]);\nif (!mascotas.length) faltantes.push('mascotas');\nif (faltantes.length) {\n  throw new Error(`Faltan campos obligatorios: ${faltantes.join(', ')}`);\n}\nreturn [{ json: {\n  ...cliente,\n  sql_identificacion: sql(cliente.identificacion),\n  sql_nombres: sql(cliente.nombres),\n  sql_apellidos: sql(cliente.apellidos),\n  sql_telefono: sql(cliente.telefono),\n  sql_email: sql(cliente.email),\n  sql_direccion: sql(cliente.direccion),\n  sql_mascotas_json: sql(JSON.stringify(mascotas))\n} }];"
       },
       "id": "preparar-cliente",
       "name": "Preparar Cliente",
@@ -29,7 +29,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "CALL sp_registrar_cliente_mascota(\n  '{{ $('Preparar Cliente').item.json.sql_identificacion }}',\n  '{{ $('Preparar Cliente').item.json.sql_nombres }}',\n  '{{ $('Preparar Cliente').item.json.sql_apellidos }}',\n  '{{ $('Preparar Cliente').item.json.sql_telefono }}',\n  '{{ $('Preparar Cliente').item.json.sql_email }}',\n  '{{ $('Preparar Cliente').item.json.sql_direccion }}',\n  '{{ $('Preparar Cliente').item.json.sql_mascota }}',\n  '{{ $('Preparar Cliente').item.json.sql_especie }}',\n  '{{ $('Preparar Cliente').item.json.sql_raza }}',\n  '{{ $('Preparar Cliente').item.json.sql_observaciones }}'\n);",
+        "query": "CALL sp_registrar_cliente_mascotas(\n  '{{ $('Preparar Cliente').item.json.sql_identificacion }}',\n  '{{ $('Preparar Cliente').item.json.sql_nombres }}',\n  '{{ $('Preparar Cliente').item.json.sql_apellidos }}',\n  '{{ $('Preparar Cliente').item.json.sql_telefono }}',\n  '{{ $('Preparar Cliente').item.json.sql_email }}',\n  '{{ $('Preparar Cliente').item.json.sql_direccion }}',\n  '{{ $('Preparar Cliente').item.json.sql_mascotas_json }}'\n);",
         "options": {}
       },
       "id": "mysql-registrar-cliente",
@@ -46,7 +46,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={ \"success\": true, \"message\": \"Cliente registrado correctamente\", \"cliente\": { \"identificacion\": \"{{ $('Preparar Cliente').item.json.identificacion }}\", \"nombres\": \"{{ $('Preparar Cliente').item.json.nombres }}\", \"apellidos\": \"{{ $('Preparar Cliente').item.json.apellidos }}\", \"mascota\": \"{{ $('Preparar Cliente').item.json.mascota }}\" } }"
+        "responseBody": "={ \"success\": true, \"message\": \"Cliente registrado correctamente\", \"cliente\": { \"identificacion\": \"{{ $('Preparar Cliente').item.json.identificacion }}\", \"nombres\": \"{{ $('Preparar Cliente').item.json.nombres }}\", \"apellidos\": \"{{ $('Preparar Cliente').item.json.apellidos }}\" } }"
       },
       "id": "response-cliente",
       "name": "Responder Cliente OK",
@@ -175,6 +175,69 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [1060, 680]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "mascotas",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-mascotas",
+      "name": "Listar Mascotas Cliente (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 960],
+      "webhookId": "vetcitas-mascotas-001",
+      "notes": "Endpoint GET /webhook/mascotas?identificacion=XXXX para cargar mascotas en el formulario de citas."
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst query = input.query || {};\nfunction clean(value) { return String(value || '').trim(); }\nfunction sql(value) { return clean(value).replace(/'/g, \"''\"); }\nconst identificacion = clean(query.identificacion || input.identificacion);\nif (!identificacion) throw new Error('Debe enviar identificacion.');\nreturn [{ json: { identificacion, sql_identificacion: sql(identificacion) } }];"
+      },
+      "id": "preparar-consulta-mascotas",
+      "name": "Preparar Consulta Mascotas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 960]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  m.id_mascota AS id,\n  m.nombre,\n  m.especie,\n  m.raza,\n  m.observaciones\nFROM mascotas m\nJOIN clientes c ON c.id_cliente = m.id_cliente\nWHERE c.identificacion = '{{ $('Preparar Consulta Mascotas').item.json.sql_identificacion }}'\n  AND c.activo = 1\nORDER BY m.nombre ASC;",
+        "options": {}
+      },
+      "id": "mysql-consultar-mascotas",
+      "name": "Consultar Mascotas en MySQL",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2,
+      "position": [780, 960],
+      "credentials": {
+        "mySql": {
+          "name": "VetCitas MySQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const mascotas = $input.all().map((item) => item.json);\nreturn [{ json: { success: true, mascotas } }];"
+      },
+      "id": "preparar-respuesta-mascotas",
+      "name": "Preparar Respuesta Mascotas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1060, 960]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "response-mascotas",
+      "name": "Responder Mascotas",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 960]
     }
   ],
   "connections": {
@@ -207,6 +270,18 @@
     },
     "Preparar Respuesta Citas": {
       "main": [[{ "node": "Responder Citas", "type": "main", "index": 0 }]]
+    },
+    "Listar Mascotas Cliente (Webhook)": {
+      "main": [[{ "node": "Preparar Consulta Mascotas", "type": "main", "index": 0 }]]
+    },
+    "Preparar Consulta Mascotas": {
+      "main": [[{ "node": "Consultar Mascotas en MySQL", "type": "main", "index": 0 }]]
+    },
+    "Consultar Mascotas en MySQL": {
+      "main": [[{ "node": "Preparar Respuesta Mascotas", "type": "main", "index": 0 }]]
+    },
+    "Preparar Respuesta Mascotas": {
+      "main": [[{ "node": "Responder Mascotas", "type": "main", "index": 0 }]]
     }
   },
   "settings": {

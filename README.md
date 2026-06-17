@@ -4,8 +4,8 @@ Aplicacion web estatica para gestionar clientes, mascotas y citas veterinarias c
 
 ## Flujo actual
 
-- Registra clientes y mascotas desde la pantalla `Clientes`.
-- Agenda citas pidiendo la identificacion del propietario.
+- Registra clientes con una o varias mascotas desde la pantalla `Clientes`.
+- Agenda citas pidiendo la identificacion del propietario y cargando sus mascotas desde MySQL.
 - Lista citas desde MySQL mediante n8n.
 - Usa reglas DMN simples para prioridad y disponibilidad.
 - Envia confirmacion por email desde el flujo n8n.
@@ -20,7 +20,7 @@ SOURCE migrations/20260617_identificacion_clientes.sql;
 
 Este script borra y recrea la base `vetcitas`. Incluye `clientes.identificacion`, datos de prueba y los procedimientos:
 
-- `sp_registrar_cliente_mascota`
+- `sp_registrar_cliente_mascotas`
 - `sp_agendar_cita_identificacion`
 - `sp_actualizar_estado_cita`
 
@@ -42,6 +42,7 @@ http://localhost:82
 ```text
 POST /api/webhook/cliente
 POST /api/webhook/nueva-cita
+GET  /api/webhook/mascotas?identificacion=1001
 GET  /api/webhook/citas
 ```
 
