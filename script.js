@@ -5,20 +5,22 @@ const CLIENTE_URL = '/api/webhook/cliente';
 const MASCOTAS_URL = '/api/webhook/mascotas';
 const CLIENTES_URL = '/api/webhook/clientes';
 const CANCELAR_CITA_URL = '/api/webhook/eliminar-cita';
+const HORARIOS_URL = '/api/webhook/horarios';
+const VETERINARIOS_URL = '/api/webhook/veterinarios';
+const VETERINARIOS_GESTION_URL = '/api/webhook/veterinarios-gestion';
+const VETERINARIO_URL = '/api/webhook/veterinario';
+const VETERINARIO_ESTADO_URL = '/api/webhook/veterinario-estado';
 
-const citasIniciales = [
-  { id: 1, identificacion: '1001', dueno: 'Laura Martinez', telefono: '300 111 2233', email: 'laura@example.com', mascota: 'Rex', especie: 'Perro', tipo: 'Emergencia', prioridad: 'Alta', fecha: '2026-06-03', hora: '08:00', estado: 'Confirmada', obs: 'Vomitos frecuentes' },
-  { id: 2, identificacion: '1002', dueno: 'Carlos Gomez', telefono: '300 222 3344', email: 'carlos@example.com', mascota: 'Michi', especie: 'Gato', tipo: 'Vacunacion', prioridad: 'Baja', fecha: '2026-06-03', hora: '09:00', estado: 'Pendiente', obs: '' },
-  { id: 3, identificacion: '1003', dueno: 'Ana Perez', telefono: '300 333 4455', email: 'ana@example.com', mascota: 'Coco', especie: 'Ave', tipo: 'Consulta general', prioridad: 'Media', fecha: '2026-06-04', hora: '11:00', estado: 'Confirmada', obs: 'Revision anual' },
-  { id: 4, identificacion: '1004', dueno: 'Jhon Contreras', telefono: '300 444 5566', email: 'jhon@example.com', mascota: 'Bolt', especie: 'Perro', tipo: 'Consulta general', prioridad: 'Media', fecha: '2026-06-05', hora: '14:00', estado: 'Pendiente', obs: '' },
-  { id: 5, identificacion: '1005', dueno: 'Julian Barrera', telefono: '300 555 6677', email: 'julian@example.com', mascota: 'Nina', especie: 'Conejo', tipo: 'Vacunacion', prioridad: 'Baja', fecha: '2026-06-06', hora: '16:00', estado: 'Confirmada', obs: '' },
-];
+const citasIniciales = [];
 
 let citas = cargarCitas();
 let nextId = citas.reduce((max, cita) => Math.max(max, cita.id), 0) + 1;
 let clientes = [];
 let filtroCitasTexto = '';
 let filtroCitasEstado = '';
+let horariosDisponibles = [];
+let veterinarios = [];
+let veterinariosGestion = [];
 
 function cargarCitas() {
   try {
@@ -33,6 +35,7 @@ function normalizarCitaRemota(cita) {
   return {
     id: Number(cita.id || cita.id_cita || 0),
     identificacion: cita.identificacion || '',
+    id_veterinario: Number(cita.id_veterinario || 0),
     dueno: cita.dueno || '',
     telefono: cita.telefono || '',
     email: cita.email || '',
@@ -85,6 +88,7 @@ function showPage(name, trigger) {
 
   if (name === 'citas') aplicarFiltrosCitas();
   if (name === 'clientes') cargarClientesRemotos();
+  if (name === 'veterinarios') cargarVeterinariosGestion();
   if (name === 'dashboard') updateStats();
 }
 
@@ -240,7 +244,13 @@ async function cancelarCita(id) {
 }
 
 function horarioOcupado(fecha, hora) {
-  return citas.some(cita => cita.fecha === fecha && cita.hora === hora && cita.estado !== 'Cancelada');
+  const idVeterinario = fieldValue('f-veterinario');
+  return citas.some(cita =>
+    cita.fecha === fecha &&
+    cita.hora === hora &&
+    cita.estado !== 'Cancelada' &&
+    (!idVeterinario || !cita.id_veterinario || String(cita.id_veterinario) === idVeterinario)
+  );
 }
 
 function fieldValue(id) {
@@ -310,13 +320,14 @@ function obtenerMascotasFormulario() {
 function evalDMN() {
   const tipo = fieldValue('f-tipo');
   const identificacion = fieldValue('f-identificacion');
+  const idVeterinario = fieldValue('f-veterinario');
   const fecha = fieldValue('f-fecha');
   const hora = fieldValue('f-hora');
   const box = document.getElementById('dmn-result');
 
   const mascota = fieldValue('f-mascota');
 
-  if (!tipo || !identificacion || !mascota || !fecha || !hora) {
+  if (!tipo || !identificacion || !mascota || !idVeterinario || !fecha || !hora) {
     box.classList.remove('show');
     return;
   }
@@ -336,7 +347,7 @@ function evalDMN() {
     accion = 'Accion DMN: registrar cliente y elegir otro horario.';
   }
 
-  box.innerHTML = `<strong>Prioridad asignada:</strong> ${prioridad}<br><strong>Identificacion:</strong> ${clienteLocal ? 'Encontrada en esta agenda' : 'Se validara en MySQL'}<br><strong>Disponibilidad:</strong> ${disponible ? 'Disponible' : 'Ocupado'}<br>${accion}`;
+  box.innerHTML = `<strong>Prioridad asignada:</strong> ${prioridad}<br><strong>Identificacion:</strong> ${clienteLocal ? 'Encontrada en esta agenda' : 'Se validara en MySQL'}<br><strong>Horario:</strong> ${formatearHora(hora)}<br><strong>Disponibilidad:</strong> ${disponible ? 'Disponible' : 'Ocupado'}<br>${accion}`;
   box.classList.add('show');
 }
 
@@ -527,6 +538,258 @@ async function cargarMascotasCliente(mostrarError = false) {
   }
 }
 
+async function cargarVeterinarios() {
+  const select = document.getElementById('f-veterinario');
+  if (!select) return;
+
+  select.innerHTML = '<option value="">Cargando veterinarios...</option>';
+  select.disabled = true;
+
+  try {
+    const response = await fetch(VETERINARIOS_URL, { cache: 'no-store' });
+    if (!response.ok) throw new Error('No se pudieron consultar los veterinarios');
+
+    const data = await response.json();
+    const lista = Array.isArray(data) ? data : data.veterinarios;
+    if (!Array.isArray(lista) || !lista.length) throw new Error('No hay veterinarios activos');
+
+    veterinarios = lista.map(veterinario => ({
+      id: Number(veterinario.id || veterinario.id_veterinario || 0),
+      nombre: veterinario.nombre || `${veterinario.nombres || ''} ${veterinario.apellidos || ''}`.trim(),
+      especialidad: veterinario.especialidad || '',
+    })).filter(veterinario => veterinario.id);
+
+    select.innerHTML = '<option value="">Seleccionar veterinario...</option>' + veterinarios.map(veterinario => (
+      `<option value="${veterinario.id}">${escapeHtml(veterinario.nombre)}${veterinario.especialidad ? ` - ${escapeHtml(veterinario.especialidad)}` : ''}</option>`
+    )).join('');
+    select.disabled = false;
+  } catch (error) {
+    console.warn('No se pudieron cargar veterinarios.', error);
+    select.innerHTML = '<option value="">Error cargando veterinarios...</option>';
+    showToast('No pude cargar veterinarios desde n8n/MySQL.', true);
+  }
+}
+
+function normalizarVeterinario(veterinario) {
+  return {
+    id: Number(veterinario.id || veterinario.id_veterinario || 0),
+    nombres: veterinario.nombres || '',
+    apellidos: veterinario.apellidos || '',
+    nombre: veterinario.nombre || `${veterinario.nombres || ''} ${veterinario.apellidos || ''}`.trim(),
+    especialidad: veterinario.especialidad || '',
+    telefono: veterinario.telefono || '',
+    activo: veterinario.activo === undefined ? 1 : Number(veterinario.activo),
+  };
+}
+
+async function cargarVeterinariosGestion(mostrarError = false) {
+  const contenedor = document.getElementById('veterinarios-list');
+  if (!contenedor) return;
+
+  contenedor.innerHTML = '<div class="empty-row">Cargando veterinarios...</div>';
+
+  try {
+    const response = await fetch(VETERINARIOS_GESTION_URL, { cache: 'no-store' });
+    if (!response.ok) throw new Error('No se pudieron consultar los veterinarios');
+
+    const data = await response.json();
+    const lista = Array.isArray(data) ? data : data.veterinarios;
+    if (!Array.isArray(lista)) throw new Error('Respuesta de veterinarios invalida');
+
+    veterinariosGestion = lista.map(normalizarVeterinario);
+    renderVeterinariosGestion(veterinariosGestion);
+  } catch (error) {
+    console.warn('No se pudieron cargar veterinarios para gestion.', error);
+    contenedor.innerHTML = '<div class="empty-row">No se pudieron cargar veterinarios desde n8n/MySQL.</div>';
+    if (mostrarError) showToast('No pude cargar veterinarios desde n8n/MySQL.', true);
+  }
+}
+
+function renderVeterinariosGestion(lista) {
+  const contenedor = document.getElementById('veterinarios-list');
+
+  if (!lista.length) {
+    contenedor.innerHTML = '<div class="empty-row">No hay veterinarios registrados.</div>';
+    return;
+  }
+
+  contenedor.innerHTML = lista.map(veterinario => {
+    const nombreCompleto = veterinario.nombre || `${veterinario.nombres} ${veterinario.apellidos}`.trim();
+    const estado = veterinario.activo ? 'Activo' : 'Inactivo';
+    return `
+      <article class="client-card">
+        <div class="client-main">
+          <div>
+            <h3>${escapeHtml(nombreCompleto || 'Veterinario sin nombre')}</h3>
+            <p>${escapeHtml(veterinario.especialidad || 'Sin especialidad')} - ${escapeHtml(veterinario.telefono || 'Sin telefono')}</p>
+          </div>
+          <span class="badge ${veterinario.activo ? 'badge-baja' : 'badge-cancel'}">${estado}</span>
+        </div>
+        <div class="client-pets">
+          <button class="btn-action" type="button" onclick="editarVeterinario(${veterinario.id})">Editar</button>
+          <button class="btn-action ${veterinario.activo ? 'danger' : ''}" type="button" onclick="cambiarEstadoVeterinario(${veterinario.id}, ${veterinario.activo ? 0 : 1})">
+            ${veterinario.activo ? 'Desactivar' : 'Activar'}
+          </button>
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
+function filtrarVeterinariosGestion(query) {
+  const q = query.trim().toLowerCase();
+  const filtrados = veterinariosGestion.filter(veterinario =>
+    veterinario.nombres.toLowerCase().includes(q) ||
+    veterinario.apellidos.toLowerCase().includes(q) ||
+    veterinario.nombre.toLowerCase().includes(q) ||
+    veterinario.especialidad.toLowerCase().includes(q) ||
+    veterinario.telefono.toLowerCase().includes(q)
+  );
+  renderVeterinariosGestion(filtrados);
+}
+
+function editarVeterinario(id) {
+  const veterinario = veterinariosGestion.find(item => item.id === id);
+  if (!veterinario) return;
+
+  document.getElementById('v-id').value = veterinario.id;
+  document.getElementById('v-nombres').value = veterinario.nombres;
+  document.getElementById('v-apellidos').value = veterinario.apellidos;
+  document.getElementById('v-especialidad').value = veterinario.especialidad;
+  document.getElementById('v-telefono').value = veterinario.telefono;
+  showToast('Veterinario cargado para editar.');
+}
+
+function resetVeterinarioFormulario() {
+  ['v-id', 'v-nombres', 'v-apellidos', 'v-especialidad', 'v-telefono'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+}
+
+async function guardarVeterinario() {
+  const id = fieldValue('v-id');
+  const nombres = fieldValue('v-nombres');
+  const apellidos = fieldValue('v-apellidos');
+  const especialidad = fieldValue('v-especialidad');
+  const telefono = fieldValue('v-telefono');
+
+  if (!nombres || !apellidos) {
+    showToast('Complete nombres y apellidos del veterinario.', true);
+    return;
+  }
+
+  try {
+    const response = await fetch(VETERINARIO_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_veterinario: id || null, nombres, apellidos, especialidad, telefono }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.success === false) {
+      throw new Error(data.message || 'No se pudo guardar el veterinario');
+    }
+
+    resetVeterinarioFormulario();
+    await cargarVeterinariosGestion();
+    await cargarVeterinarios();
+    showToast('Veterinario guardado correctamente.');
+  } catch (error) {
+    showToast(error.message || 'No se pudo guardar el veterinario en n8n/MySQL.', true);
+  }
+}
+
+async function cambiarEstadoVeterinario(id, activo) {
+  try {
+    const response = await fetch(VETERINARIO_ESTADO_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_veterinario: id, activo }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.success === false) {
+      throw new Error(data.message || 'No se pudo actualizar el estado');
+    }
+
+    await cargarVeterinariosGestion();
+    await cargarVeterinarios();
+    showToast(`Veterinario ${activo ? 'activado' : 'desactivado'}.`);
+  } catch (error) {
+    showToast(error.message || 'No se pudo actualizar el veterinario.', true);
+  }
+}
+
+async function cargarHorariosDisponibles(mostrarError = false) {
+  const fecha = fieldValue('f-fecha');
+  const idVeterinario = fieldValue('f-veterinario');
+  const contenedor = document.getElementById('horarios-list');
+  const horaInput = document.getElementById('f-hora');
+  if (!contenedor || !horaInput) return;
+
+  horaInput.value = '';
+  horariosDisponibles = [];
+  evalDMN();
+
+  if (!fecha || !idVeterinario) {
+    contenedor.innerHTML = '<div class="empty-row">Seleccione fecha y veterinario para cargar horarios.</div>';
+    return;
+  }
+
+  contenedor.innerHTML = '<div class="empty-row">Cargando horarios...</div>';
+
+  try {
+    const url = `${HORARIOS_URL}?fecha=${encodeURIComponent(fecha)}&id_veterinario=${encodeURIComponent(idVeterinario)}`;
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) throw new Error('No se pudieron consultar los horarios');
+
+    const data = await response.json();
+    const lista = Array.isArray(data) ? data : data.horarios;
+    if (!Array.isArray(lista)) throw new Error('Respuesta de horarios invalida');
+
+    horariosDisponibles = lista.map(horario => ({
+      hora: String(horario.hora || horario.hora_inicio || '').slice(0, 5),
+      disponible: horario.disponible === true || horario.disponible === 1 || horario.disponible === '1',
+      estado: horario.estado || '',
+    })).filter(horario => horario.hora);
+
+    renderHorarios();
+  } catch (error) {
+    console.warn('No se pudieron cargar horarios.', error);
+    contenedor.innerHTML = '<div class="empty-row">No se pudieron cargar horarios desde n8n/MySQL.</div>';
+    if (mostrarError) showToast('No pude cargar horarios desde n8n/MySQL.', true);
+  }
+}
+
+function renderHorarios() {
+  const contenedor = document.getElementById('horarios-list');
+  const horaSeleccionada = fieldValue('f-hora');
+
+  if (!horariosDisponibles.length) {
+    contenedor.innerHTML = '<div class="empty-row">No hay horarios configurados para este veterinario.</div>';
+    return;
+  }
+
+  contenedor.innerHTML = horariosDisponibles.map(horario => {
+    const selected = horario.hora === horaSeleccionada ? ' selected' : '';
+    const disabled = horario.disponible ? '' : ' disabled';
+    const estado = horario.disponible ? 'Disponible' : 'Ocupado';
+    return `
+      <button class="slot-btn${selected}" type="button" onclick="seleccionarHorario('${horario.hora}')"${disabled}>
+        <span>${formatearHora(horario.hora)}</span>
+        <small>${estado}</small>
+      </button>
+    `;
+  }).join('');
+}
+
+function seleccionarHorario(hora) {
+  const horario = horariosDisponibles.find(item => item.hora === hora);
+  if (!horario || !horario.disponible) return;
+
+  document.getElementById('f-hora').value = hora;
+  renderHorarios();
+  evalDMN();
+}
+
 function seleccionarMascotaCita() {
   const select = document.getElementById('f-mascota');
   const option = select.options[select.selectedIndex];
@@ -538,11 +801,12 @@ async function agendarCita() {
   const mascota = fieldValue('f-mascota');
   const especie = fieldValue('f-especie');
   const tipo = fieldValue('f-tipo');
+  const idVeterinario = fieldValue('f-veterinario');
   const fecha = fieldValue('f-fecha');
   const hora = fieldValue('f-hora');
   const obs = fieldValue('f-obs');
 
-  if (!identificacion || !mascota || !especie || !tipo || !fecha || !hora) {
+  if (!identificacion || !mascota || !especie || !tipo || !idVeterinario || !fecha || !hora) {
     showToast('Complete los campos obligatorios.', true);
     return;
   }
@@ -558,6 +822,7 @@ async function agendarCita() {
     dueno: `ID ${identificacion}`,
     telefono: '',
     email: '',
+    id_veterinario: Number(idVeterinario),
     mascota,
     especie,
     tipo,
@@ -581,6 +846,7 @@ async function agendarCita() {
       body: JSON.stringify({
         ...cita,
         tipo_caso: cita.tipo,
+        id_veterinario: cita.id_veterinario,
         observaciones: cita.obs,
         verificacion_cliente: 'identificacion',
         hora_formateada: formatearHora(cita.hora),
@@ -590,6 +856,7 @@ async function agendarCita() {
 
     if (!response.ok) throw new Error('Webhook sin respuesta OK');
     await cargarCitasRemotas();
+    await cargarHorariosDisponibles(false);
     showToast(`Cita agendada para ${mascota}. Notificacion enviada.`);
   } catch {
     showToast(`Cita agendada para ${mascota}. n8n queda pendiente.`);
@@ -597,15 +864,17 @@ async function agendarCita() {
 }
 
 function resetFormulario() {
-  ['f-identificacion', 'f-especie', 'f-obs', 'f-fecha'].forEach(id => {
+  ['f-identificacion', 'f-especie', 'f-obs', 'f-fecha', 'f-hora'].forEach(id => {
     document.getElementById(id).value = '';
   });
-  ['f-tipo', 'f-hora'].forEach(id => {
+  ['f-tipo', 'f-veterinario'].forEach(id => {
     document.getElementById(id).selectedIndex = 0;
   });
   const mascota = document.getElementById('f-mascota');
   mascota.innerHTML = '<option value="">Ingrese una identificacion y cargue mascotas...</option>';
   mascota.disabled = true;
+  horariosDisponibles = [];
+  document.getElementById('horarios-list').innerHTML = '<div class="empty-row">Seleccione fecha y veterinario para cargar horarios.</div>';
   document.getElementById('dmn-result').classList.remove('show');
 }
 
@@ -630,9 +899,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('f-identificacion').addEventListener('change', () => cargarMascotasCliente(false));
   document.getElementById('f-identificacion').addEventListener('input', evalDMN);
   fecha.min = fechaLocalISO();
-  fecha.addEventListener('change', evalDMN);
+  fecha.addEventListener('change', () => cargarHorariosDisponibles(true));
   agregarMascotaCliente();
   updateStats();
+  cargarVeterinarios();
   cargarCitasRemotas();
   cargarClientesRemotos();
 });

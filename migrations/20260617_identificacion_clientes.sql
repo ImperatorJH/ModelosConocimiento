@@ -58,6 +58,18 @@ CREATE TABLE veterinarios (
   PRIMARY KEY (id_veterinario)
 ) ENGINE=InnoDB;
 
+CREATE TABLE horarios_atencion (
+  id_horario     INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  id_veterinario INT UNSIGNED NOT NULL,
+  hora_inicio    TIME NOT NULL,
+  activo         TINYINT(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (id_horario),
+  UNIQUE KEY uq_horario_atencion_vet (id_veterinario, hora_inicio),
+  CONSTRAINT fk_horario_veterinario
+    FOREIGN KEY (id_veterinario) REFERENCES veterinarios(id_veterinario)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
 CREATE TABLE citas (
   id_cita        INT UNSIGNED NOT NULL AUTO_INCREMENT,
   id_mascota     INT UNSIGNED NOT NULL,
@@ -129,6 +141,22 @@ INSERT INTO veterinarios (nombres, apellidos, especialidad, telefono) VALUES
   ('Pedro', 'Ramirez', 'Medicina general', '3001002000'),
   ('Sofia', 'Lopez', 'Cirugia veterinaria', '3002003000');
 
+INSERT INTO horarios_atencion (id_veterinario, hora_inicio) VALUES
+  (1, '08:00:00'),
+  (1, '09:00:00'),
+  (1, '10:00:00'),
+  (1, '11:00:00'),
+  (1, '14:00:00'),
+  (1, '15:00:00'),
+  (1, '16:00:00'),
+  (2, '08:00:00'),
+  (2, '09:00:00'),
+  (2, '10:00:00'),
+  (2, '11:00:00'),
+  (2, '14:00:00'),
+  (2, '15:00:00'),
+  (2, '16:00:00');
+
 INSERT INTO mascotas (id_cliente, nombre, especie, raza, observaciones) VALUES
   (1, 'Rex', 'Perro', 'Pastor Aleman', 'Vomitos frecuentes'),
   (1, 'Luna', 'Gato', 'Criolla', 'Mascota adicional del cliente'),
@@ -149,6 +177,7 @@ VALUES
 CREATE OR REPLACE VIEW v_citas_detalle AS
 SELECT
   c.id_cita,
+  c.id_veterinario,
   cl.identificacion,
   CONCAT(cl.nombres, ' ', cl.apellidos) AS dueno,
   cl.telefono,

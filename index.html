@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VetCitas - Agendamiento de Citas</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=20260617-canceladas">
+  <link rel="stylesheet" href="./styles.css?v=20260617-veterinarios">
 </head>
 <body>
 
@@ -14,6 +14,7 @@
   <div class="header-nav">
     <button class="nav-btn active" data-page="dashboard" onclick="showPage('dashboard', this)">Dashboard</button>
     <button class="nav-btn" data-page="clientes" onclick="showPage('clientes', this)">Clientes</button>
+    <button class="nav-btn" data-page="veterinarios" onclick="showPage('veterinarios', this)">Veterinarios</button>
     <button class="nav-btn" data-page="nueva" onclick="showPage('nueva', this)">Nueva Cita</button>
     <button class="nav-btn" data-page="citas" onclick="showPage('citas', this)">Citas</button>
     <button class="nav-btn" data-page="flujo" onclick="showPage('flujo', this)">Flujo BPMN</button>
@@ -182,6 +183,63 @@
   </div>
 </div>
 
+<div id="page-veterinarios" class="page">
+  <div class="container">
+    <div class="page-head">
+      <div>
+        <div class="section-label">Personal medico</div>
+        <div class="section-heading">Veterinarios</div>
+      </div>
+    </div>
+
+    <div class="form-card wide-form">
+      <div class="form-title">Gestionar Veterinario</div>
+      <div class="form-subtitle">Registre o actualice el personal medico disponible para la agenda.</div>
+
+      <input type="hidden" id="v-id">
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="v-nombres">Nombres *</label>
+          <input type="text" id="v-nombres" placeholder="Ej: Sofia">
+        </div>
+        <div class="form-group">
+          <label for="v-apellidos">Apellidos *</label>
+          <input type="text" id="v-apellidos" placeholder="Ej: Lopez">
+        </div>
+        <div class="form-group">
+          <label for="v-especialidad">Especialidad</label>
+          <input type="text" id="v-especialidad" placeholder="Medicina general">
+        </div>
+        <div class="form-group">
+          <label for="v-telefono">Telefono</label>
+          <input type="tel" id="v-telefono" placeholder="300 000 0000">
+        </div>
+      </div>
+
+      <div class="form-actions-row">
+        <button class="submit-btn" type="button" onclick="guardarVeterinario()">Guardar Veterinario</button>
+        <button class="btn-action" type="button" onclick="resetVeterinarioFormulario()">Limpiar</button>
+      </div>
+    </div>
+
+    <div class="table-card clients-panel">
+      <div class="table-header">
+        <div>
+          <div class="table-title">Veterinarios registrados</div>
+          <div class="table-subtitle">Personal activo e inactivo usado por la agenda.</div>
+        </div>
+        <div class="toolbar-actions">
+          <input class="search-input" type="text" placeholder="Buscar veterinario..." oninput="filtrarVeterinariosGestion(this.value)">
+          <button class="btn-action" type="button" onclick="cargarVeterinariosGestion(true)">Actualizar</button>
+        </div>
+      </div>
+      <div class="clients-list" id="veterinarios-list">
+        <div class="empty-row">Cargando veterinarios...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="page-nueva" class="page">
   <div class="container">
     <div class="page-head">
@@ -227,17 +285,17 @@
           <input type="date" id="f-fecha">
         </div>
         <div class="form-group">
-          <label for="f-hora">Hora *</label>
-          <select id="f-hora" onchange="evalDMN()">
-            <option value="">Seleccionar...</option>
-            <option value="08:00">08:00 am</option>
-            <option value="09:00">09:00 am</option>
-            <option value="10:00">10:00 am</option>
-            <option value="11:00">11:00 am</option>
-            <option value="14:00">02:00 pm</option>
-            <option value="15:00">03:00 pm</option>
-            <option value="16:00">04:00 pm</option>
+          <label for="f-veterinario">Veterinario *</label>
+          <select id="f-veterinario" onchange="cargarHorariosDisponibles(true); evalDMN();">
+            <option value="">Cargando veterinarios...</option>
           </select>
+        </div>
+        <div class="form-group full">
+          <label>Hora *</label>
+          <input type="hidden" id="f-hora">
+          <div class="schedule-slots" id="horarios-list">
+            <div class="empty-row">Seleccione fecha y veterinario para cargar horarios.</div>
+          </div>
         </div>
         <div class="form-group full">
           <label for="f-obs">Observaciones</label>
@@ -438,6 +496,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="./script.js?v=20260617-canceladas"></script>
+<script src="./script.js?v=20260617-veterinarios"></script>
 </body>
 </html>

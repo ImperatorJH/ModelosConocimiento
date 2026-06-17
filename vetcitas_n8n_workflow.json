@@ -71,7 +71,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.first().json.body || $input.first().json;\nfunction clean(value) { return String(value || '').trim(); }\nfunction sql(value) { return clean(value).replace(/'/g, \"''\"); }\nconst tipo = clean(body.tipo_caso || body.tipo || 'Consulta general');\nconst hora = clean(body.hora).slice(0, 5);\nconst prioridades = { 'Emergencia': 'Alta', 'Consulta general': 'Media', 'Vacunacion': 'Baja' };\nconst cita = {\n  identificacion: clean(body.identificacion),\n  mascota: clean(body.mascota),\n  especie: clean(body.especie),\n  tipo_caso: tipo,\n  prioridad: prioridades[tipo] || 'Media',\n  fecha: clean(body.fecha),\n  hora,\n  hora_formateada: body.hora_formateada || hora,\n  observaciones: clean(body.observaciones || body.obs)\n};\nconst faltantes = ['identificacion', 'mascota', 'especie', 'tipo_caso', 'fecha', 'hora'].filter((campo) => !cita[campo]);\nif (faltantes.length) {\n  throw new Error(`Faltan campos obligatorios: ${faltantes.join(', ')}`);\n}\nreturn [{ json: {\n  ...cita,\n  sql_identificacion: sql(cita.identificacion),\n  sql_mascota: sql(cita.mascota),\n  sql_especie: sql(cita.especie),\n  sql_tipo_caso: sql(cita.tipo_caso),\n  sql_fecha: sql(cita.fecha),\n  sql_hora: sql(cita.hora),\n  sql_observaciones: sql(cita.observaciones)\n} }];"
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nfunction clean(value) { return String(value || '').trim(); }\nfunction sql(value) { return clean(value).replace(/'/g, \"''\"); }\nconst tipo = clean(body.tipo_caso || body.tipo || 'Consulta general');\nconst hora = clean(body.hora).slice(0, 5);\nconst idVeterinario = Number(body.id_veterinario || body.veterinario || 0);\nconst prioridades = { 'Emergencia': 'Alta', 'Consulta general': 'Media', 'Vacunacion': 'Baja' };\nconst cita = {\n  identificacion: clean(body.identificacion),\n  mascota: clean(body.mascota),\n  especie: clean(body.especie),\n  id_veterinario: idVeterinario,\n  tipo_caso: tipo,\n  prioridad: prioridades[tipo] || 'Media',\n  fecha: clean(body.fecha),\n  hora,\n  hora_formateada: body.hora_formateada || hora,\n  observaciones: clean(body.observaciones || body.obs)\n};\nconst faltantes = ['identificacion', 'mascota', 'especie', 'tipo_caso', 'fecha', 'hora'].filter((campo) => !cita[campo]);\nif (!idVeterinario) faltantes.push('id_veterinario');\nif (faltantes.length) {\n  throw new Error(`Faltan campos obligatorios: ${faltantes.join(', ')}`);\n}\nreturn [{ json: {\n  ...cita,\n  sql_identificacion: sql(cita.identificacion),\n  sql_mascota: sql(cita.mascota),\n  sql_especie: sql(cita.especie),\n  sql_tipo_caso: sql(cita.tipo_caso),\n  sql_fecha: sql(cita.fecha),\n  sql_hora: sql(cita.hora),\n  sql_observaciones: sql(cita.observaciones)\n} }];"
       },
       "id": "preparar-cita",
       "name": "Preparar Cita",
@@ -82,7 +82,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "CALL sp_agendar_cita_identificacion(\n  '{{ $('Preparar Cita').item.json.sql_identificacion }}',\n  '{{ $('Preparar Cita').item.json.sql_mascota }}',\n  '{{ $('Preparar Cita').item.json.sql_especie }}',\n  1,\n  '{{ $('Preparar Cita').item.json.sql_tipo_caso }}',\n  '{{ $('Preparar Cita').item.json.sql_fecha }}',\n  '{{ $('Preparar Cita').item.json.sql_hora }}:00',\n  '{{ $('Preparar Cita').item.json.sql_observaciones }}'\n);",
+        "query": "CALL sp_agendar_cita_identificacion(\n  '{{ $('Preparar Cita').item.json.sql_identificacion }}',\n  '{{ $('Preparar Cita').item.json.sql_mascota }}',\n  '{{ $('Preparar Cita').item.json.sql_especie }}',\n  {{ $('Preparar Cita').item.json.id_veterinario }},\n  '{{ $('Preparar Cita').item.json.sql_tipo_caso }}',\n  '{{ $('Preparar Cita').item.json.sql_fecha }}',\n  '{{ $('Preparar Cita').item.json.sql_hora }}:00',\n  '{{ $('Preparar Cita').item.json.sql_observaciones }}'\n);",
         "options": {}
       },
       "id": "mysql-agendar-cita",
@@ -141,7 +141,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT\n  c.id_cita AS id,\n  cl.identificacion,\n  CONCAT(cl.nombres, ' ', cl.apellidos) AS dueno,\n  cl.telefono,\n  cl.email,\n  m.nombre AS mascota,\n  m.especie,\n  c.tipo_caso,\n  c.prioridad,\n  DATE_FORMAT(c.fecha_cita, '%Y-%m-%d') AS fecha,\n  TIME_FORMAT(c.hora_cita, '%H:%i') AS hora,\n  c.estado,\n  c.observaciones AS obs\nFROM citas c\nJOIN clientes cl ON cl.id_cliente = c.id_cliente\nJOIN mascotas m ON m.id_mascota = c.id_mascota\nORDER BY c.fecha_cita DESC, c.hora_cita DESC\nLIMIT 200;",
+        "query": "SELECT\n  c.id_cita AS id,\n  c.id_veterinario,\n  cl.identificacion,\n  CONCAT(cl.nombres, ' ', cl.apellidos) AS dueno,\n  cl.telefono,\n  cl.email,\n  m.nombre AS mascota,\n  m.especie,\n  c.tipo_caso,\n  c.prioridad,\n  DATE_FORMAT(c.fecha_cita, '%Y-%m-%d') AS fecha,\n  TIME_FORMAT(c.hora_cita, '%H:%i') AS hora,\n  c.estado,\n  c.observaciones AS obs\nFROM citas c\nJOIN clientes cl ON cl.id_cliente = c.id_cliente\nJOIN mascotas m ON m.id_mascota = c.id_mascota\nORDER BY c.fecha_cita DESC, c.hora_cita DESC\nLIMIT 200;",
         "options": {}
       },
       "id": "mysql-consultar-citas",
@@ -294,6 +294,281 @@
     },
     {
       "parameters": {
+        "httpMethod": "GET",
+        "path": "veterinarios",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-veterinarios",
+      "name": "Listar Veterinarios (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 1520],
+      "webhookId": "vetcitas-veterinarios-001",
+      "notes": "Endpoint GET /webhook/veterinarios para cargar veterinarios activos."
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  id_veterinario AS id,\n  nombres,\n  apellidos,\n  CONCAT(nombres, ' ', apellidos) AS nombre,\n  especialidad,\n  telefono\nFROM veterinarios\nWHERE activo = 1\nORDER BY nombres ASC, apellidos ASC;",
+        "options": {}
+      },
+      "id": "mysql-consultar-veterinarios",
+      "name": "Consultar Veterinarios en MySQL",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2,
+      "position": [500, 1520],
+      "credentials": {
+        "mySql": {
+          "name": "VetCitas MySQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const veterinarios = $input.all().map((item) => item.json);\nreturn [{ json: { success: true, veterinarios } }];"
+      },
+      "id": "preparar-respuesta-veterinarios",
+      "name": "Preparar Respuesta Veterinarios",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [780, 1520]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "response-veterinarios",
+      "name": "Responder Veterinarios",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1060, 1520]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "veterinarios-gestion",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-veterinarios-gestion",
+      "name": "Listar Veterinarios Gestion (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 1660],
+      "webhookId": "vetcitas-veterinarios-gestion-001",
+      "notes": "Endpoint GET /webhook/veterinarios-gestion para administrar veterinarios activos e inactivos."
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  id_veterinario AS id,\n  nombres,\n  apellidos,\n  CONCAT(nombres, ' ', apellidos) AS nombre,\n  especialidad,\n  telefono,\n  activo\nFROM veterinarios\nORDER BY activo DESC, nombres ASC, apellidos ASC;",
+        "options": {}
+      },
+      "id": "mysql-consultar-veterinarios-gestion",
+      "name": "Consultar Veterinarios Gestion en MySQL",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2,
+      "position": [500, 1660],
+      "credentials": {
+        "mySql": {
+          "name": "VetCitas MySQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const veterinarios = $input.all().map((item) => item.json);\nreturn [{ json: { success: true, veterinarios } }];"
+      },
+      "id": "preparar-respuesta-veterinarios-gestion",
+      "name": "Preparar Respuesta Veterinarios Gestion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [780, 1660]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "response-veterinarios-gestion",
+      "name": "Responder Veterinarios Gestion",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1060, 1660]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "veterinario",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-guardar-veterinario",
+      "name": "Guardar Veterinario (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 1800],
+      "webhookId": "vetcitas-guardar-veterinario-001",
+      "notes": "Endpoint POST /webhook/veterinario para crear o actualizar veterinarios."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nfunction clean(value) { return String(value || '').trim(); }\nfunction sql(value) { return clean(value).replace(/'/g, \"''\"); }\nconst id = Number(body.id_veterinario || body.id || 0);\nconst veterinario = {\n  id_veterinario: Number.isInteger(id) && id > 0 ? id : null,\n  nombres: clean(body.nombres),\n  apellidos: clean(body.apellidos),\n  especialidad: clean(body.especialidad),\n  telefono: clean(body.telefono)\n};\nconst faltantes = ['nombres', 'apellidos'].filter((campo) => !veterinario[campo]);\nif (faltantes.length) {\n  throw new Error(`Faltan campos obligatorios: ${faltantes.join(', ')}`);\n}\nreturn [{ json: {\n  ...veterinario,\n  sql_id: veterinario.id_veterinario || 'NULL',\n  sql_nombres: sql(veterinario.nombres),\n  sql_apellidos: sql(veterinario.apellidos),\n  sql_especialidad: sql(veterinario.especialidad),\n  sql_telefono: sql(veterinario.telefono)\n} }];"
+      },
+      "id": "preparar-guardar-veterinario",
+      "name": "Preparar Guardar Veterinario",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 1800]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO veterinarios\n  (id_veterinario, nombres, apellidos, especialidad, telefono, activo)\nVALUES\n  ({{ $('Preparar Guardar Veterinario').item.json.sql_id }},\n   '{{ $('Preparar Guardar Veterinario').item.json.sql_nombres }}',\n   '{{ $('Preparar Guardar Veterinario').item.json.sql_apellidos }}',\n   NULLIF('{{ $('Preparar Guardar Veterinario').item.json.sql_especialidad }}', ''),\n   NULLIF('{{ $('Preparar Guardar Veterinario').item.json.sql_telefono }}', ''),\n   1)\nON DUPLICATE KEY UPDATE\n  nombres = VALUES(nombres),\n  apellidos = VALUES(apellidos),\n  especialidad = VALUES(especialidad),\n  telefono = VALUES(telefono),\n  activo = 1;",
+        "options": {}
+      },
+      "id": "mysql-guardar-veterinario",
+      "name": "Guardar Veterinario en MySQL",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2,
+      "position": [780, 1800],
+      "credentials": {
+        "mySql": {
+          "name": "VetCitas MySQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"message\": \"Veterinario guardado correctamente\" } }}"
+      },
+      "id": "response-guardar-veterinario",
+      "name": "Responder Guardar Veterinario",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1060, 1800]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "veterinario-estado",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-veterinario-estado",
+      "name": "Actualizar Estado Veterinario (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 1940],
+      "webhookId": "vetcitas-veterinario-estado-001",
+      "notes": "Endpoint POST /webhook/veterinario-estado para activar o desactivar veterinarios."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst id = Number(body.id_veterinario || body.id || 0);\nconst activo = Number(body.activo);\nif (!Number.isInteger(id) || id <= 0) throw new Error('Debe enviar id_veterinario valido.');\nif (![0, 1].includes(activo)) throw new Error('Debe enviar activo 0 o 1.');\nreturn [{ json: { id_veterinario: id, activo } }];"
+      },
+      "id": "preparar-veterinario-estado",
+      "name": "Preparar Estado Veterinario",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 1940]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE veterinarios\nSET activo = {{ $('Preparar Estado Veterinario').item.json.activo }}\nWHERE id_veterinario = {{ $('Preparar Estado Veterinario').item.json.id_veterinario }};",
+        "options": {}
+      },
+      "id": "mysql-veterinario-estado",
+      "name": "Actualizar Estado Veterinario en MySQL",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2,
+      "position": [780, 1940],
+      "credentials": {
+        "mySql": {
+          "name": "VetCitas MySQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"message\": \"Estado actualizado\", \"id_veterinario\": $('Preparar Estado Veterinario').item.json.id_veterinario, \"activo\": $('Preparar Estado Veterinario').item.json.activo } }}"
+      },
+      "id": "response-veterinario-estado",
+      "name": "Responder Estado Veterinario",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1060, 1940]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "horarios",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-horarios",
+      "name": "Listar Horarios (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 1800],
+      "webhookId": "vetcitas-horarios-001",
+      "notes": "Endpoint GET /webhook/horarios?fecha=YYYY-MM-DD&id_veterinario=1 para disponibilidad real."
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst query = input.query || {};\nfunction clean(value) { return String(value || '').trim(); }\nfunction sql(value) { return clean(value).replace(/'/g, \"''\"); }\nconst fecha = clean(query.fecha || input.fecha);\nconst idVeterinario = Number(query.id_veterinario || input.id_veterinario || 0);\nif (!fecha) throw new Error('Debe enviar fecha.');\nif (!Number.isInteger(idVeterinario) || idVeterinario <= 0) throw new Error('Debe enviar id_veterinario valido.');\nreturn [{ json: { fecha, id_veterinario: idVeterinario, sql_fecha: sql(fecha) } }];"
+      },
+      "id": "preparar-consulta-horarios",
+      "name": "Preparar Consulta Horarios",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 1800]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  TIME_FORMAT(h.hora_inicio, '%H:%i') AS hora,\n  CASE WHEN c.id_cita IS NULL THEN 1 ELSE 0 END AS disponible,\n  c.estado\nFROM horarios_atencion h\nLEFT JOIN citas c\n  ON c.id_veterinario = h.id_veterinario\n  AND c.fecha_cita = '{{ $('Preparar Consulta Horarios').item.json.sql_fecha }}'\n  AND c.hora_cita = h.hora_inicio\n  AND c.estado NOT IN ('Cancelada', 'Finalizada')\nWHERE h.id_veterinario = {{ $('Preparar Consulta Horarios').item.json.id_veterinario }}\n  AND h.activo = 1\nORDER BY h.hora_inicio ASC;",
+        "options": {}
+      },
+      "id": "mysql-consultar-horarios",
+      "name": "Consultar Horarios en MySQL",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2,
+      "position": [780, 1800],
+      "credentials": {
+        "mySql": {
+          "name": "VetCitas MySQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const horarios = $input.all().map((item) => ({\n  hora: item.json.hora,\n  disponible: item.json.disponible === 1 || item.json.disponible === true || item.json.disponible === '1',\n  estado: item.json.estado || null\n}));\nreturn [{ json: { success: true, horarios } }];"
+      },
+      "id": "preparar-respuesta-horarios",
+      "name": "Preparar Respuesta Horarios",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1060, 1800]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "response-horarios",
+      "name": "Responder Horarios",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 1800]
+    },
+    {
+      "parameters": {
         "httpMethod": "POST",
         "path": "eliminar-cita",
         "responseMode": "responseNode",
@@ -303,7 +578,7 @@
       "name": "Cancelar Cita (Webhook)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [220, 1520],
+      "position": [220, 2080],
       "webhookId": "vetcitas-eliminar-cita-001",
       "notes": "Endpoint POST /webhook/eliminar-cita para cancelar una cita por id_cita sin borrar el registro."
     },
@@ -315,7 +590,7 @@
       "name": "Preparar Cancelar Cita",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [500, 1520]
+      "position": [500, 2080]
     },
     {
       "parameters": {
@@ -327,7 +602,7 @@
       "name": "Cancelar Cita en MySQL",
       "type": "n8n-nodes-base.mySql",
       "typeVersion": 2,
-      "position": [780, 1520],
+      "position": [780, 2080],
       "credentials": {
         "mySql": {
           "name": "VetCitas MySQL"
@@ -343,7 +618,7 @@
       "name": "Responder Cancelar Cita",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [1060, 1520]
+      "position": [1060, 2080]
     }
   ],
   "connections": {
@@ -398,6 +673,54 @@
     "Preparar Respuesta Clientes": {
       "main": [[{ "node": "Responder Clientes", "type": "main", "index": 0 }]]
     },
+    "Listar Veterinarios (Webhook)": {
+      "main": [[{ "node": "Consultar Veterinarios en MySQL", "type": "main", "index": 0 }]]
+    },
+    "Consultar Veterinarios en MySQL": {
+      "main": [[{ "node": "Preparar Respuesta Veterinarios", "type": "main", "index": 0 }]]
+    },
+    "Preparar Respuesta Veterinarios": {
+      "main": [[{ "node": "Responder Veterinarios", "type": "main", "index": 0 }]]
+    },
+    "Listar Veterinarios Gestion (Webhook)": {
+      "main": [[{ "node": "Consultar Veterinarios Gestion en MySQL", "type": "main", "index": 0 }]]
+    },
+    "Consultar Veterinarios Gestion en MySQL": {
+      "main": [[{ "node": "Preparar Respuesta Veterinarios Gestion", "type": "main", "index": 0 }]]
+    },
+    "Preparar Respuesta Veterinarios Gestion": {
+      "main": [[{ "node": "Responder Veterinarios Gestion", "type": "main", "index": 0 }]]
+    },
+    "Guardar Veterinario (Webhook)": {
+      "main": [[{ "node": "Preparar Guardar Veterinario", "type": "main", "index": 0 }]]
+    },
+    "Preparar Guardar Veterinario": {
+      "main": [[{ "node": "Guardar Veterinario en MySQL", "type": "main", "index": 0 }]]
+    },
+    "Guardar Veterinario en MySQL": {
+      "main": [[{ "node": "Responder Guardar Veterinario", "type": "main", "index": 0 }]]
+    },
+    "Actualizar Estado Veterinario (Webhook)": {
+      "main": [[{ "node": "Preparar Estado Veterinario", "type": "main", "index": 0 }]]
+    },
+    "Preparar Estado Veterinario": {
+      "main": [[{ "node": "Actualizar Estado Veterinario en MySQL", "type": "main", "index": 0 }]]
+    },
+    "Actualizar Estado Veterinario en MySQL": {
+      "main": [[{ "node": "Responder Estado Veterinario", "type": "main", "index": 0 }]]
+    },
+    "Listar Horarios (Webhook)": {
+      "main": [[{ "node": "Preparar Consulta Horarios", "type": "main", "index": 0 }]]
+    },
+    "Preparar Consulta Horarios": {
+      "main": [[{ "node": "Consultar Horarios en MySQL", "type": "main", "index": 0 }]]
+    },
+    "Consultar Horarios en MySQL": {
+      "main": [[{ "node": "Preparar Respuesta Horarios", "type": "main", "index": 0 }]]
+    },
+    "Preparar Respuesta Horarios": {
+      "main": [[{ "node": "Responder Horarios", "type": "main", "index": 0 }]]
+    },
     "Cancelar Cita (Webhook)": {
       "main": [[{ "node": "Preparar Cancelar Cita", "type": "main", "index": 0 }]]
     },
@@ -412,7 +735,7 @@
     "executionOrder": "v1"
   },
   "meta": {
-    "description": "Flujo n8n para VetCitas. Registra clientes y mascotas, agenda citas por identificacion, lista clientes/citas y cancela citas en MySQL.",
+    "description": "Flujo n8n para VetCitas. Registra clientes, mascotas y veterinarios; agenda citas por identificacion; consulta horarios disponibles y cancela citas en MySQL.",
     "project": "Modelos de Conocimiento - Agendamiento de Citas"
   }
 }
